@@ -1,0 +1,21 @@
+name = "cloudflare-cms"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cms-db"
+database_id = "1777beb6-b1d9-4872-bf79-16aa090a9ecc" # Generated on 2024-12-23
+
+[[r2_buckets]]
+binding = "MEDIA_BUCKET"
+bucket_name = "cms-media"
+preview_bucket_name = "cms-media-dev"
+
+[vars]
+ENVIRONMENT = "development" 
+
+# For development only - use wrangler secret for production
+JWT_SECRET = "d2a0c6a77dfc871cb6f5f584a456564cf07c7b21843680a15b7b50ed6ab92a48"
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "password"
