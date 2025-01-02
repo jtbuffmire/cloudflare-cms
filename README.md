@@ -150,153 +150,13 @@ Notes
 # Terminal 1 (in worker directory)
 npx wrangler dev
 
-## results in 
-```
-npx wrangler dev
-
- ⛅️ wrangler 3.99.0
--------------------
-
-Your worker has access to the following bindings:
-- D1 Databases:
-  - DB: cms-db (1777beb6-b1d9-4872-bf79-16aa090a9ecc) (local)
-- R2 Buckets:
-  - MEDIA_BUCKET: cms-media (local)
-- Vars:
-  - ENVIRONMENT: "development"
-  - JWT_SECRET: "d2a0c6a77dfc871cb6f5f584a456564cf07c7..."
-  - ADMIN_USERNAME: "admin"
-  - ADMIN_PASSWORD: "password"
-⎔ Starting local server...
-[wrangler:inf] Ready on http://localhost:8787
-```
-
 # Terminal 2 (in admin directory)
 npm run dev
-
-## results in 
-```
-> admin@0.0.1 dev
-> vite dev --port 5174
-
-
-  VITE v5.4.11  ready in 321 ms
-
-  ➜  Local:   http://localhost:5174/
-  ➜  Network: use --host to expose
-  ➜  press h + enter to show help
-```
 
 # Terminal 3 (in blog directory)
 npm run dev
 
-## results in 
 ```
-> blog@0.0.1 dev
-> vite dev --port 5175
-
-▲ [WARNING] Processing wrangler.toml configuration:
-
-    - Because you've defined a [site] configuration, we're defaulting to "workers-site" for the
-  deprecated `site.entry-point`field.
-      Add the top level `main` field to your configuration file:
-      ```
-      main = "workers-site/index.js"
-      ```
-
-
-Re-optimizing dependencies because lockfile has changed
-
-  VITE v5.4.11  ready in 687 ms
-
-  ➜  Local:   http://localhost:5175/
-  ➜  Network: use --host to expose
-  ➜  press h + enter to show help
-Deprecation Warning: The legacy JS API is deprecated and will be removed in Dart Sass 2.0.0.
-
-More info: https://sass-lang.com/d/legacy-js-api
-
-Deprecation Warning: The legacy JS API is deprecated and will be removed in Dart Sass 2.0.0.
-
-More info: https://sass-lang.com/d/legacy-js-api
-
-12:38:12 AM [vite-plugin-svelte] /Users/jt/cloudflare-cms/blog/src/routes/+page.svelte:69:0 Unused CSS selector ".pfp"
-Deprecation Warning: The legacy JS API is deprecated and will be removed in Dart Sass 2.0.0.
-
-More info: https://sass-lang.com/d/legacy-js-api
-
-Deprecation Warning: The legacy JS API is deprecated and will be removed in Dart Sass 2.0.0.
-
-More info: https://sass-lang.com/d/legacy-js-api
-
-Deprecation Warning: The legacy JS API is deprecated and will be removed in Dart Sass 2.0.0.
-
-More info: https://sass-lang.com/d/legacy-js-api
-
-Deprecation Warning: The legacy JS API is deprecated and will be removed in Dart Sass 2.0.0.
-
-More info: https://sass-lang.com/d/legacy-js-api
-
-Deprecation Warning: The legacy JS API is deprecated and will be removed in Dart Sass 2.0.0.
-
-More info: https://sass-lang.com/d/legacy-js-api
-
-Deprecation Warning: The legacy JS API is deprecated and will be removed in Dart Sass 2.0.0.
-
-More info: https://sass-lang.com/d/legacy-js-api
-
-12:38:12 AM [vite-plugin-svelte] /Users/jt/cloudflare-cms/blog/src/routes/+page.svelte:69:0 Unused CSS selector ".pfp"
-12:41:48 AM [vite] page reload src/app.html
-12:41:48 AM [vite] page reload .svelte-kit/generated/server/internal.js
-Deprecation Warning: The legacy JS API is deprecated and will be removed in Dart Sass 2.0.0.
-
-More info: https://sass-lang.com/d/legacy-js-api
-
-Deprecation Warning: The legacy JS API is deprecated and will be removed in Dart Sass 2.0.0.
-
-More info: https://sass-lang.com/d/legacy-js-api
-
-Deprecation Warning: The legacy JS API is deprecated and will be removed in Dart Sass 2.0.0.
-
-More info: https://sass-lang.com/d/legacy-js-api
-
-Deprecation Warning: The legacy JS API is deprecated and will be removed in Dart Sass 2.0.0.
-
-More info: https://sass-lang.com/d/legacy-js-api
-
-Deprecation Warning: The legacy JS API is deprecated and will be removed in Dart Sass 2.0.0.
-
-More info: https://sass-lang.com/d/legacy-js-api
-
-Deprecation Warning: The legacy JS API is deprecated and will be removed in Dart Sass 2.0.0.
-
-More info: https://sass-lang.com/d/legacy-js-api
-
-Deprecation Warning: The legacy JS API is deprecated and will be removed in Dart Sass 2.0.0.
-
-More info: https://sass-lang.com/d/legacy-js-api
-
-Deprecation Warning: The legacy JS API is deprecated and will be removed in Dart Sass 2.0.0.
-
-More info: https://sass-lang.com/d/legacy-js-api
-
-Deprecation Warning: The legacy JS API is deprecated and will be removed in Dart Sass 2.0.0.
-
-More info: https://sass-lang.com/d/legacy-js-api
-```
-
-
-mv /Users/jt/personal/worker/src/middleware/cors.ts cors.ts
-
-mv /Users/jt/cloudflare-cms/worker/errorHandler.ts errorHandler.ts
-
-mv /Users/jt/cloudflare-cms/worker/router.ts router.ts 
-
-curl -X POST http://localhost:8787/api/posts \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTczNTQ5ODUzMywiaWF0IjoxNzM1NDEyMTMzfQ.22n_QUqR6qXcAmefAwinGakqj42HTxmJ5sIxnHTt-co" \
-  -d '{"title":"Protected Post","content":"This is protected","slug":"protected-post"}'
-
 
 Next...
 Continue with the dashboard component?
@@ -305,19 +165,7 @@ Set up the post editor component?
 Start building the admin UI?
 Add image optimization features to the media system?
 
-curl -X POST http://localhost:8787/api/media \
-  -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTczNTQ5ODUzMywiaWF0IjoxNzM1NDEyMTMzfQ.22n_QUqR6qXcAmefAwinGakqj42HTxmJ5sIxnHTt-co" \
-  -F "file=@/Users/jt/Desktop/Bouy_4 Transparent.png"
 
-  '/Users/jt/Desktop/Bouy_4 Transparent.png'
-
-  API
-
-  Next...
-  Blog: http://localhost:5175
-Admin: http://localhost:5174
-API Health Check: http://localhost:8787/api/health
-API Posts: http://localhost:8787/api/posts
 Check the Network tab in your browser's developer tools for:
 Successful API calls
 No CORS errors
@@ -329,46 +177,9 @@ Any network errors
 What you see on each page
 Would you like to try these steps?
 
-# First get a token
-curl -X POST http://localhost:8787/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"password"}'
-
-# Then create a post (replace YOUR_TOKEN with the token you received)
-curl -X POST http://localhost:8787/api/posts \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTczNTUyMTAyMiwiaWF0IjoxNzM1NDM0NjIyfQ.iDpwQgHzmkVIA6X0g82O3t8AR6Y3Z_Q8hAcIXk2YAEo" \
-  -d '{
-    "title": "Test Post",
-    "content": "This is a test post",
-    "slug": "test-post",
-    "published": true
-  }'
-
-  npm install plausible-tracker
-
   Blog hosted at http://localhost:5175/
   Admin hosted at http://localhost:5174/
   API hosted at http://localhost:8787/
-
-
-npx wrangler dev
-
- ⛅️ wrangler 3.99.0
--------------------
-
-Your worker has access to the following bindings:
-- D1 Databases:
-  - DB: cms-db (1777beb6-b1d9-4872-bf79-16aa090a9ecc) (local)
-- R2 Buckets:
-  - MEDIA_BUCKET: cms-media (local)
-- Vars:
-  - ENVIRONMENT: "development"
-  - JWT_SECRET: "d2a0c6a77dfc871cb6f5f584a456564cf07c7..."
-  - ADMIN_USERNAME: "admin"
-  - ADMIN_PASSWORD: "password"
-⎔ Starting local server...
-[wrangler:inf] Ready on http://localhost:8787
 
 graph TD
     A[Blog Frontend - Cloudflare Pages] --> C[API Worker]
@@ -387,7 +198,8 @@ Add a preview of how the URL will look?
 
 after upgrading let's check svelte.config.js and vite.config.ts for breaking changes.
 
-
-cd /Users/jt/cloudflare-cms/admin/src/routes/admin/posts/[id]
-cursor /Users/jt/cloudflare-cms/admin/src/routes/admin/posts/[id]/+page.svelte
+add a publish button to the posts page
+add an Updated At field to the posts page
+change "ADMIN" to the blog title and admin page.
+rich text editor for the post content with markdown support and the ability to add images.
 
