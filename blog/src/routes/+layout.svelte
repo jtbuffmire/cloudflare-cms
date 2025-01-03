@@ -4,9 +4,13 @@
 	import '$lib/assets/fonts/space-grotesk.css';
 	import 'iconify-icon';
 	import { page } from '$app/stores';
+	import { onDestroy } from 'svelte';
 	import Logo from '$lib/components/Logo.svelte';
 	import PageHead from '$lib/components/PageHead.svelte';
 	import { fly } from 'svelte/transition';
+	import { onMount } from 'svelte';
+	import { wsClient } from '$lib/websocket';
+	import { siteConfig } from '$lib/stores';
 
 	export let data;
 
@@ -23,7 +27,7 @@
 		prevTwoPages = [prevTwoPages[1], data.pathname];
 	}
 
-	function xy(path, isIn = true) {
+	function xy(path /* : string */, isIn = true) {
 		if (path === prevTwoPages[0]) {
 			return { x: 0, y: 0 };
 		}
@@ -50,6 +54,24 @@
 
 		return { x: `${isIn ? '' : '-'}${xDiff * 20}vh`, y: `${isIn ? '' : '-'}${yDiff * 20}vh` };
 	}
+
+	onDestroy(() => {
+		if (data.wsClient) {
+			data.wsClient.close();
+		}
+	});
+
+	onMount(() => {
+		// Subscribe to site config updates
+		const unsubscribe = wsClient.subscribe('SITE_CONFIG_UPDATE', (data) => {
+			console.log('📝 Updating site config:', data);
+			siteConfig.set(data);
+		});
+
+		return () => {
+			unsubscribe();
+		};
+	});
 </script>
 
 <PageHead
@@ -62,7 +84,7 @@
 <header class:home={$page.url.pathname === '/'}>
 	<div class="row">
 		<a class="pfp" href="/" aria-label="homepage"><Logo --width="2rem" --height="2rem" /></a>
-		<a href="/"><h1>refact0r</h1></a>
+		<a href="/"><h1>{$siteConfig.title || 'refact0r'}</h1></a>
 	</div>
 	<nav>
 		{#each pages as { name, path }}

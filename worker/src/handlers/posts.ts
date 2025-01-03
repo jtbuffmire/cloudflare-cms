@@ -10,6 +10,20 @@ interface PostQueryParams {
   sortOrder?: 'asc' | 'desc';
 }
 
+interface CreatePostBody {
+  title: string;
+  slug: string;
+  content: string;
+  published?: boolean;
+}
+
+interface UpdatePostBody {
+  title?: string;
+  content?: string;
+  slug?: string;
+  published?: boolean;
+}
+
 export async function getPosts(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   try {
     const url = new URL(request.url);
@@ -52,7 +66,7 @@ export async function getPosts(request: Request, env: Env, ctx: ExecutionContext
         total,
         page,
         limit,
-        pages: Math.ceil(total / limit)
+        pages: Math.ceil(Number(total) / limit)
       }
     }), {
       headers: { 'Content-Type': 'application/json' }
@@ -77,7 +91,7 @@ export async function createPost(request: Request, env: Env, ctx: ExecutionConte
     //   method: request.method
     // });
 
-    const body = await request.json();
+    const body = await request.json() as CreatePostBody;
     // console.log('Received payload:', body);
 
     const { title, slug, content, published = false } = body;
@@ -108,7 +122,26 @@ export async function createPost(request: Request, env: Env, ctx: ExecutionConte
 
     // console.log('DB insert successful:', result);
 
-    return new Response(JSON.stringify({ id: result.lastRowId }), {
+    const responseData = { 
+      id: result.meta.last_row_id,
+      title,
+      slug,
+      content,
+      published
+    };
+
+    // Broadcast creation
+    const id = env.WEBSOCKET_HANDLER.idFromName('default');
+    const handler = env.WEBSOCKET_HANDLER.get(id);
+    await handler.fetch(new Request('http://internal/broadcast', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 'POST_CREATE',
+        data: responseData
+      })
+    }));
+
+    return new Response(JSON.stringify(responseData), {
       status: 201,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -163,7 +196,7 @@ export async function updatePost(
   params: Record<string, string>
 ): Promise<Response> {
   try {
-      const { title, content, slug, published } = await request.json();
+      const { title, content, slug, published } = await request.json() as UpdatePostBody;
       // console.log('Update payload:', { title, content, slug, published });
       // console.log('Post ID:', params.id);
       
@@ -218,7 +251,28 @@ export async function updatePost(
       .bind(...values)
       .run();
 
-      return new Response(JSON.stringify({ success: true }), {
+      // Get updated post data
+      const updatedPost = await env.DB.prepare('SELECT * FROM posts WHERE id = ?')
+        .bind(params.id)
+        .first();
+
+      const responseData = {
+        id: params.id,
+        ...updatedPost
+      };
+
+      // Broadcast update
+      const id = env.WEBSOCKET_HANDLER.idFromName('default');
+      const handler = env.WEBSOCKET_HANDLER.get(id);
+      await handler.fetch(new Request('http://internal/broadcast', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: 'POST_UPDATE',
+          data: responseData
+        })
+      }));
+
+      return new Response(JSON.stringify(responseData), {
           headers: { 'Content-Type': 'application/json' },
       });
   } catch (error) {
@@ -248,8 +302,19 @@ export async function deletePost(
       .bind(params.id)
       .run();
 
-    return new Response(JSON.stringify({ id: result.meta.last_row_id }), {
-      status: 201,
+    // Broadcast deletion
+    const id = env.WEBSOCKET_HANDLER.idFromName('default');
+    const handler = env.WEBSOCKET_HANDLER.get(id);
+    await handler.fetch(new Request('http://internal/broadcast', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 'POST_DELETE',
+        data: { id: params.id }
+      })
+    }));
+
+    return new Response(JSON.stringify({ id: params.id }), {
+      status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (error) {

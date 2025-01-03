@@ -19,8 +19,8 @@
       </a>
       
       <a class="card p-4" href="/admin/media">
-        <h3 class="h3">Media</h3>
-        <p>Manage your media files</p>
+        <h3 class="h3">Pictures</h3>
+        <p>Manage your pictures</p>
       </a>
     </div>
   </div>

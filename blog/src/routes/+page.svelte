@@ -1,6 +1,7 @@
 <script>
 	import pfpin from '$lib/assets/pfpin.json';
 	import { onMount } from 'svelte';
+	import { siteConfig } from '$lib/stores';
 
 	let lottie;
 
@@ -19,31 +20,50 @@
 			node.classList.add('pfp');
 		});
 	});
+
+	// Default nav links as fallback
+	const defaultNavLinks = {
+		projects: true,
+		blog: true,
+		pics: true,
+		about: true,
+		contact: true
+	};
 </script>
 
 <main>
 	<div class="container">
 		<div class="row">
-			<h1>refact0r</h1>
+			<h1>{$siteConfig.title || 'refact0r'}</h1>
 			<div class="pfpstart"></div>
 		</div>
-		<p>hey there! i'm a student interested in comp sci, web dev, design, and more.</p>
+		<p>{$siteConfig.description || "hey there! i'm a student interested in comp sci, web dev, design, and more."}</p>
 		<nav>
-			<a class="nav" href="/projects">
-				<span class="arrow">-></span><span class="slash">/</span>projects
-			</a>
-			<a class="nav" href="/blog">
-				<span class="arrow">-></span><span class="slash">/</span>blog
-			</a>
-			<a class="nav" href="/pics">
-				<span class="arrow">-></span><span class="slash">/</span>pics
-			</a>
-			<a class="nav" href="/about">
-				<span class="arrow">-></span><span class="slash">/</span>about
-			</a>
-			<a class="nav" href="/contact">
-				<span class="arrow">-></span><span class="slash">/</span>contact
-			</a>
+			{#if ($siteConfig.nav_links?.projects ?? defaultNavLinks.projects)}
+				<a class="nav" href="/projects">
+					<span class="arrow">-></span><span class="slash">/</span>projects
+				</a>
+			{/if}
+			{#if ($siteConfig.nav_links?.blog ?? defaultNavLinks.blog)}
+				<a class="nav" href="/blog">
+					<span class="arrow">-></span><span class="slash">/</span>blog
+				</a>
+			{/if}
+			{#if ($siteConfig.nav_links?.pics ?? defaultNavLinks.pics)}
+				<a class="nav" href="/pics">
+					<span class="arrow">-></span><span class="slash">/</span>pics
+				</a>
+			{/if}
+			{#if ($siteConfig.nav_links?.about ?? defaultNavLinks.about)}
+				<a class="nav" href="/about">
+					<span class="arrow">-></span><span class="slash">/</span>about
+				</a>
+			{/if}
+			{#if ($siteConfig.nav_links?.contact ?? defaultNavLinks.contact)}
+				<a class="nav" href="/contact">
+					<span class="arrow">-></span><span class="slash">/</span>contact
+				</a>
+			{/if}
 		</nav>
 	</div>
 </main>
@@ -100,3 +120,4 @@
 		}
 	}
 </style>
+

@@ -1,8 +1,8 @@
 import { Env } from './types';
-import { getMedia, uploadMedia, getMediaFile, deleteMedia } from './handlers/media';
+import { getMedia, uploadMedia, getMediaFile, deleteMedia, updateMedia, cleanupOrphanedFiles } from './handlers/media';
 import { login } from './handlers/auth';
-import { createPost, getPost, getPosts, updatePost } from './handlers/posts';
-
+import { createPost, getPost, getPosts, updatePost, deletePost } from './handlers/posts';
+import { getSiteConfig, updateSiteConfig, debugDatabase, debugSiteConfig } from './handlers/site';
 
 type RouteHandler<E> = (
   request: Request,
@@ -63,6 +63,24 @@ export class Router<E> {
     const url = new URL(request.url);
     const path = url.pathname;
 
+    // Debug: Print all registered routes
+    console.log('📍 Registered routes:', {
+        methods: Array.from(this.routes.keys()),
+        routes: Object.fromEntries(
+            Array.from(this.routes.entries()).map(([method, routes]) => [
+                method,
+                Array.from(routes.keys())
+            ])
+        )
+    });
+  
+    console.log('🔍 Request details:', { 
+        method, 
+        path, 
+        headers: Object.fromEntries(request.headers),
+        routeKeys: Array.from(this.routes.get(method)?.keys() || [])
+    });
+
     console.log('🔍 Request details:', { 
       method, 
       path, 
@@ -90,26 +108,52 @@ export class Router<E> {
   }
 } 
 
-export function createRouter(): Router<Env> {
+function createRouter(): Router<Env> {
   const router = new Router<Env>();
 
   // Media routes
   router.post('/api/media/upload', uploadMedia);
   router.get('/api/media', getMedia);
   router.get('/api/media/:key', getMediaFile);
-  router.delete('/api/media/:id', deleteMedia);
+  router.delete('/api/media/:id', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
+    return deleteMedia(request, env, params.id);
+  });
+  router.put('/api/media/:id', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
+    return updateMedia(request, env, params.id);
+  });  
 
-  // Post routes -- not implemented yet
+  // Post routes
   router.post('/api/posts', createPost);
   router.get('/api/posts/:id', getPost);
   router.get('/api/posts', getPosts);
   router.put('/api/posts/:id', updatePost); 
-  // router.delete('/api/posts/:id', deletePost);
-  // ... other post routes ...
+  router.delete('/api/posts/:id', deletePost);
 
   // Auth routes
   router.post('/api/auth/login', login);
-  // ... other auth routes ...
+  
+  // Site config routes
+  router.get('/api/site/config', getSiteConfig);
+  router.put('/api/site/config', updateSiteConfig);
+  router.get('/api/debug/db', debugDatabase);
+  router.get('/api/debug/site-config', debugSiteConfig);
+
+  // WebSocket route
+  router.get('/ws', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
+    const id = env.WEBSOCKET_HANDLER.idFromName('default');
+    const handler = env.WEBSOCKET_HANDLER.get(id);
+    const response = await handler.fetch(request);
+    return response;
+  });
+
+  // Add maintenance routes
+  router.post('/api/maintenance/cleanup', async (request: Request, env: Env) => {
+    // Check for admin authorization here
+    return cleanupOrphanedFiles(env);
+  });
+
+  // Debug line
+  // console.log('Added site config routes:', Array.from(router.routes.get('GET')?.keys() || []));
 
   return router;
 }

@@ -3,7 +3,11 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "migrate": "node migrations/migrate.js",
+    "migrate:prod": "node migrations/migrate.js production",
+    "db:reset": "node migrations/reset.js",
+    "db:blowup": "npx wrangler d1 delete cms-db && npx wrangler d1 create cms-db && npx wrangler d1 execute cms-db --local --file=./migrations/sql/0000_initial.sql"
   },
   "keywords": [],
   "author": "",
@@ -11,6 +15,7 @@
   "description": "",
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241218.0",
+    "sass": "^1.83.0",
     "typescript": "^5.7.2",
     "wrangler": "^3.99.0"
   },

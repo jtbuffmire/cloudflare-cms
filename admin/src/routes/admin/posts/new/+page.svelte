@@ -53,7 +53,7 @@
         // Redirect after 2 seconds
         setTimeout(() => {
           window.location.href = '/admin/posts';
-        }, 2000);
+        }, 100);
 
       } catch (err) {
         error = err instanceof Error ? err.message : 'Failed to create post';

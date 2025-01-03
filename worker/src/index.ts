@@ -1,10 +1,14 @@
-import { Router } from './router';
+import { router } from './router';
 import { errorHandler } from './middleware/errorHandler';
 import { cors } from './middleware/cors';
 import { getPosts, getPost, createPost, updatePost, deletePost } from './handlers/posts';
 import { requireAuth } from './middleware/auth';
 import { login } from './handlers/auth';
-import { uploadMedia, getMedia, getMediaFile, deleteMedia } from './handlers/media';
+import { uploadMedia, getMedia, getMediaFile, updateMedia, deleteMedia } from './handlers/media';
+import { debugDatabase } from './handlers/site';
+import { WebSocketHandler } from './websocket'; 
+
+export { WebSocketHandler };
 
 export interface Env {
   DB: D1Database;
@@ -13,9 +17,8 @@ export interface Env {
   ADMIN_USERNAME: string;
   ADMIN_PASSWORD: string;
   JWT_SECRET: string; 
+  WEBSOCKET_HANDLER: DurableObjectNamespace;
 }
-
-const router = new Router<Env>();
 
 // Public endpoints
 router.get('/api/media/:key', getMediaFile);
@@ -34,7 +37,7 @@ router.post('/api/auth/login', login);
 router.post('/api/media/upload', async (request, env, ctx) => {
   const authResponse = await requireAuth(request, env);
   if (authResponse) return authResponse;
-  return uploadMedia(request, env, ctx);
+  return uploadMedia(request, env);
 });
 
 // create post (protected)
@@ -49,6 +52,13 @@ router.get('/api/media', async (request, env, ctx) => {
   const authResponse = await requireAuth(request, env);
   if (authResponse) return authResponse;
   return getMedia(request, env, ctx);
+});
+
+// update media (protected)
+router.put('/api/media/:id', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
+  const authResponse = await requireAuth(request, env);
+  if (authResponse) return authResponse;
+  return updateMedia(request, env, params.id);
 });
 
 // update post (protected)
@@ -66,17 +76,70 @@ router.delete('/api/posts/:id', async (request, env, ctx, params) => {
 });
 
 // delete media (protected)
-router.delete('/api/media/:id', async (request, env, ctx, params) => {
-  const authResponse = await requireAuth(request, env);
-  if (authResponse) return authResponse;
-  return deleteMedia(request, env, ctx, params);
+router.delete('/api/media/:id', async (request: Request, env: Env) => {
+  const url = new URL(request.url);
+  const key = url.pathname.split('/').pop();
+  if (!key) return new Response('No key provided', { status: 400 });
+  return deleteMedia(request, env, key);
+});
+
+// Add WebSocket route
+router.get('/ws', async (request: Request, env: Env) => {
+  const id = env.WEBSOCKET_HANDLER.idFromName('default');
+  const handler = env.WEBSOCKET_HANDLER.get(id);
+  return handler.fetch(request);
+});
+
+// debug database
+router.get('/api/debug', debugDatabase);
+
+router.get('/api/debug/tables', async (request: Request, env: Env) => {
+  try {
+    const tables = await env.DB.prepare(`
+      SELECT name FROM sqlite_master WHERE type='table';
+    `).all();
+    
+    const tableDetails = {};
+    
+    // Get details for each table
+    for (const table of tables.results) {
+      const rows = await env.DB.prepare(`
+        SELECT * FROM ${table.name};
+      `).all();
+      
+      tableDetails[table.name] = {
+        count: rows.results.length,
+        rows: rows.results
+      };
+    }
+    
+    return new Response(JSON.stringify({
+      tables: tables.results,
+      details: tableDetails
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({
+      error: 'Debug failed',
+      message: error.message
+    }), { 
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 });
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     console.log("🚀 Incoming request:", request.method, request.url);
     
-    // Apply CORS middleware
+    // Skip CORS for WebSocket upgrade requests
+    if (request.headers.get('Upgrade') === 'websocket') {
+      return router.handle(request, env, ctx);
+    }
+    
+    // Apply CORS middleware for non-WebSocket requests
     const corsHeaders = cors(request);
 
     // Handle OPTIONS request

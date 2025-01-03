@@ -5,12 +5,21 @@ compatibility_date = "2024-01-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "cms-db"
-database_id = "1777beb6-b1d9-4872-bf79-16aa090a9ecc" # Generated on 2024-12-23
+database_id = "d147ff80-967a-4f76-9191-b8e304cce591" # replaced on 2025-01-03
+migrations_dir = "migrations/sql"
 
 [[r2_buckets]]
 binding = "MEDIA_BUCKET"
 bucket_name = "cms-media"
 preview_bucket_name = "cms-media-dev"
+
+[[durable_objects.bindings]]
+name = "WEBSOCKET_HANDLER"
+class_name = "WebSocketHandler"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["WebSocketHandler"]
 
 [vars]
 ENVIRONMENT = "development" 

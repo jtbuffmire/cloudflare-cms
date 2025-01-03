@@ -156,50 +156,253 @@ npm run dev
 # Terminal 3 (in blog directory)
 npm run dev
 
+## Database Management
+
+### Setup and Migrations
+The project uses Cloudflare D1 (SQLite) for the database. All database changes are managed through migrations in the `worker/migrations/sql` directory.
+
+```bash
+# Create a new D1 database
+npx wrangler d1 create cms-db
+
+# Run all migrations
+npm run db:migrate
+
+# Reset database (WARNING: This will delete all data)
+npm run db:reset
+
+# Blow up the database (WARNING: This will delete all data)
+npx wrangler d1 execute cms-db --local --file=/Users/jt/cloudflare-cms/worker/migrations/sql/0000_initial.sql
 ```
 
-Next...
-Continue with the dashboard component?
-Set up the post editor component?
+### Database Structure
+The database consists of several core tables:
 
-Start building the admin UI?
-Add image optimization features to the media system?
+1. `site_config`
+   - Stores site-wide configuration
+   - Contains title, description, and navigation settings
+   - Default values are set in initial migration
+
+2. `posts`
+   - Blog post content and metadata
+   - Includes title, content, slug, and publishing status
+   - Indexed for efficient querying
+
+3. `media`
+   - Tracks uploaded files and their metadata
+   - Links to R2 storage through r2_key
+   - Includes file information like size and mime type
+
+4. `_migrations`
+   - Tracks which migrations have been applied
+   - Prevents duplicate migrations
+
+### Debugging Database
+```bash
+# View current database state
+curl http://localhost:8787/api/debug/db
+
+# Check specific table contents
+npx wrangler d1 execute cms-db --local --command="SELECT * FROM site_config;"
+```
+
+### Creating New Migrations
+1. Create a new SQL file in `worker/migrations/sql`
+2. Name it with sequential numbering (e.g., `0001_add_new_field.sql`)
+3. Include both up and down migrations if possible
+4. Run migration with:
+```bash
+npx wrangler d1 execute cms-db --local --file=./migrations/sql/your_migration.sql
+```
+
+Project: Cloudflare CMS
+Structure:
+- /admin (Svelte frontend)
+- /blog (Public frontend)
+- /worker (Cloudflare Worker backend)
+
+Key Components:
+1. Media Management
+   - R2 Storage for files
+   - D1 Database for metadata
+   - CRUD operations implemented
+   - Recently fixed delete functionality using r2_key
+
+2. Authentication
+   - JWT-based auth
+   - Environment variables:
+     - Worker: JWT_SECRET, ADMIN_USERNAME, ADMIN_PASSWORD
+     - Admin: VITE_API_URL only
+
+3. Database
+   - Using Cloudflare D1
+   - Media table includes: id, filename, r2_key, mime_type, size, created_at
+   - Posts table implemented
+
+Recent Work:
+- Fixed media deletion bug by querying DB with r2_key instead of id
+
+Development Environment:
+- Local development using Wrangler
+- Environment variables in .dev.vars for worker
+- Frontend running on localhost:5174
+- Worker running on localhost:8787
+
+1 Started with fixing the Posts functionality
+Implemented proper CRUD operations
+Fixed lastRowId issues with D1 database
+Changed to meta.last_row_id and meta.changes
+
+2 Fixed Media Management
+Implemented upload functionality
+Fixed delete operations
+Debugged issues with R2 storage and D1 database
+Fixed file deletion UI refresh
+
+3 Environment & Database Structure
+Set up proper environment variables
+Configured D1 database tables
+Implemented R2 storage for media files
+Set up proper error handling
+
+4 Authentication
+Implemented JWT-based auth
+Set up proper environment variables
+Rotated secrets after exposure
+
+5 Project Structure
+Monorepo with admin/blog/worker
+Set up proper .gitignore
+Initialized Git repository
+Fixed exposed secrets issue
 
 
-Check the Network tab in your browser's developer tools for:
-Successful API calls
-No CORS errors
-Proper data loading
-If you encounter any issues, let me know:
-Which URLs are working/not working
-Any console errors
-Any network errors
-What you see on each page
-Would you like to try these steps?
 
-  Blog hosted at http://localhost:5175/
-  Admin hosted at http://localhost:5174/
-  API hosted at http://localhost:8787/
 
-graph TD
-    A[Blog Frontend - Cloudflare Pages] --> C[API Worker]
-    B[Admin UI - Cloudflare Pages] --> C
-    C[Cloudflare Worker] --> D[D1 Database]
-    C --> E[R2 Storage]
 
-What's next 
-Handle file deletion?
-Add image optimization?
-Set up proper CORS headers?
-Add file type validation?
-Add icon selection for posts next?
-Add slug uniqueness validation?
-Add a preview of how the URL will look?
 
-after upgrading let's check svelte.config.js and vite.config.ts for breaking changes.
+next 
+Start your worker (wrangler dev)
+Start your admin panel (npm run dev)
+Start your blog (npm run dev)
+Make a change in the admin panel
+Verify the blog updates automatically
 
-add a publish button to the posts page
-add an Updated At field to the posts page
-change "ADMIN" to the blog title and admin page.
-rich text editor for the post content with markdown support and the ability to add images.
+is this right?
+  router.delete('/api/media/:id', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
+    return deleteMedia(request, env, params.id);
+  });
 
+
+  That clean up script i had to add to the index.ts file to get rid of the duplicate files.
+    // Add this temporarily for cleanup
+  router.post('/api/debug/cleanup', async (request: Request, env: Env) => {
+    try {
+      console.log('🧹 Starting cleanup...');
+      
+      // Get all files from database
+      const { results: dbFiles } = await env.DB.prepare(`
+        SELECT * FROM media
+      `).all();
+      
+      console.log('📊 Files in database:', dbFiles);
+      
+      // List all files in R2
+      const r2List = await env.MEDIA_BUCKET.list();
+      console.log('📦 Files in R2:', r2List.objects);
+      
+      // Delete the problematic file from both places
+      await env.DB.prepare(`
+        DELETE FROM media 
+        WHERE r2_key LIKE '%c9675786-a03a-4812-8415-fef038877a7c%'
+      `).run();
+      
+      try {
+        await env.MEDIA_BUCKET.delete('c9675786-a03a-4812-8415-fef038877a7c-Bouy_4 Transparent.png');
+      } catch (e) {
+        console.log('R2 delete error (expected if file already gone):', e);
+      }
+      
+      return new Response(JSON.stringify({
+        message: 'Cleanup completed',
+        dbFiles,
+        r2Files: r2List.objects
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+    } catch (error) {
+      console.error('Cleanup error:', error);
+      return new Response(JSON.stringify({ error: 'Cleanup failed' }), { 
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  });
+
+
+  reset the database with ``npm run db:reset`` >> warning! this will delete all the data in the database.
+
+## Database Management
+
+### Setup and Migrations
+The project uses Cloudflare D1 (SQLite) for the database. All database changes are managed through migrations in the `worker/migrations/sql` directory.
+
+```bash
+# Create a new D1 database
+npx wrangler d1 create cms-db
+
+# Run all migrations
+npm run db:migrate
+
+# Reset database (WARNING: This will delete all data)
+npm run db:reset
+```
+
+### Database Structure
+The database consists of several core tables:
+
+1. `site_config`
+   - Stores site-wide configuration
+   - Contains title, description, and navigation settings
+   - Default values are set in initial migration
+
+2. `posts`
+   - Blog post content and metadata
+   - Includes title, content, slug, and publishing status
+   - Indexed for efficient querying
+
+3. `media`
+   - Tracks uploaded files and their metadata
+   - Links to R2 storage through r2_key
+   - Includes file information like size and mime type
+
+4. `_migrations`
+   - Tracks which migrations have been applied
+   - Prevents duplicate migrations
+
+### Debugging Database
+```bash
+# View current database state
+curl http://localhost:8787/api/debug/db
+
+# Check specific table contents
+npx wrangler d1 execute cms-db --local --command="SELECT * FROM site_config;"
+```
+
+### Creating New Migrations
+1. Create a new SQL file in `worker/migrations/sql`
+2. Name it with sequential numbering (e.g., `0001_add_new_field.sql`)
+3. Include both up and down migrations if possible
+4. Run migration with:
+```bash
+npx wrangler d1 execute cms-db --local --file=./migrations/sql/your_migration.sql
+npx wrangler d1 execute cms-db --local --file=./migrations/sql/0000_initial.sql
+```
+
+### Best Practices
+- Never modify existing migrations
+- Create new migrations for schema changes
+- Include meaningful migration names
+- Test migrations locally before deployment
+- Back up data before running migrations in production

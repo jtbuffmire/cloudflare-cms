@@ -3,44 +3,74 @@
 
 	export let data;
 
-	let { default: content, metadata } = data.post;
+	$: post = data.post;
+	$: meta = data.meta;
+	$: images = data.images;
 </script>
 
-<main>
-	<h1>
-		<iconify-icon icon={metadata.icon} />{metadata.name}
-	</h1>
-	<p class="date">{formatDate(metadata.date)}</p>
-	<p class="description">{metadata.description}</p>
-	<div class="content">
-		<svelte:component this={content} />
-	</div>
-</main>
+<svelte:head>
+	<title>{meta.title}</title>
+	<meta name="description" content={meta.description} />
+	<meta property="og:type" content={meta.type} />
+	{#if meta.image}
+		<meta property="og:image" content={meta.image} />
+	{/if}
+</svelte:head>
 
-<style lang="scss">
-	main {
-		width: 100%;
-		max-width: 53rem;
-		margin: 0 auto 10rem auto;
-		padding: 1.5rem;
+<article class="post">
+	<header>
+		<div class="date">{formatDate(post.metadata.date)}</div>
+		<h1>{post.metadata.name}</h1>
+	</header>
+
+	<div class="content">
+		{#if post.isApiPost}
+			{@html post.content}
+		{:else}
+			<svelte:component this={post.default} {images} />
+		{/if}
+	</div>
+</article>
+
+<style>
+	.post {
+		max-width: var(--content-width);
+		margin: 0 auto;
+		padding: 2rem 1rem;
+	}
+
+	header {
+		margin-bottom: 2rem;
 	}
 
 	.date {
-		margin: 1rem 0;
-		font-size: 1.4rem;
-		font-family: 'Space Mono', monospace;
-	}
-
-	.description {
-		font-size: 1.2rem;
-		margin: 1rem 0 2rem 0;
-		font-style: italic;
-		color: var(--txt-2);
+		color: var(--text-2);
+		margin-bottom: 0.5rem;
 	}
 
 	h1 {
-		font-size: 2.5rem;
-		margin: 2rem 0;
+		margin: 0;
+		font-size: 2rem;
 		line-height: 1.3;
+	}
+
+	.content {
+		line-height: 1.6;
+	}
+
+	.content :global(h2) {
+		margin-top: 2rem;
+	}
+
+	.content :global(pre) {
+		background: var(--surface-2);
+		padding: 1rem;
+		border-radius: 4px;
+		overflow-x: auto;
+	}
+
+	.content :global(img) {
+		max-width: 100%;
+		height: auto;
 	}
 </style>
