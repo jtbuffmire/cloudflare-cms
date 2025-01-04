@@ -10,6 +10,8 @@ interface FileMetadata {
 interface UpdateMediaRequest {
   filename?: string;
   published?: boolean;
+  show_in_blog?: boolean;
+  show_in_pics?: boolean;
 }
 
 interface MediaFile {
@@ -32,29 +34,30 @@ export async function getMedia(request: Request, env: Env, ctx: ExecutionContext
         r2_key,
         mime_type,
         size,
-        created_at 
+        created_at,
+        published,
+        show_in_blog,
+        show_in_pics
       FROM media 
       ORDER BY created_at DESC
     `).all();
 
-    // console.log('Raw DB results:', results);
-
     const files = results.map(file => ({
-      id: String(file.id),  // Use the actual id column, convert to string
+      id: String(file.id),
       name: file.filename,
       url: `http://localhost:8787/api/media/${file.r2_key}`,
       type: file.mime_type,
       size: file.size,
-      uploadedAt: file.created_at
+      uploadedAt: file.created_at,
+      published: Boolean(file.published),
+      show_in_blog: Boolean(file.show_in_blog),
+      show_in_pics: Boolean(file.show_in_pics)
     }));
-
-    // console.log('Mapped files:', files);
 
     return new Response(JSON.stringify(files), { 
       headers: { 'Content-Type': 'application/json' } 
     });
   } catch (error) {
-    // console.error('Get media error:', error);
     return new Response(JSON.stringify({ error: 'Failed to fetch media' }), { 
       status: 500,
       headers: { 'Content-Type': 'application/json' } 
@@ -246,45 +249,27 @@ export async function deleteMedia(request: Request, env: Env, key: string): Prom
     
     if (!file) {
       console.log('❌ File not found in database');
-      // If the file isn't in the database but appears in the UI,
-      // try to delete it from R2 anyway
-      try {
-        await env.MEDIA_BUCKET.delete(key);
-        console.log('✅ Deleted orphaned file from R2');
-      } catch (r2Error) {
-        console.log('⚠️ R2 delete attempt:', r2Error);
-      }
-      
-      // Broadcast deletion to force UI refresh
-      const id = env.WEBSOCKET_HANDLER.idFromName('default');
-      const handler = env.WEBSOCKET_HANDLER.get(id);
-      await handler.fetch(new Request('http://internal/broadcast', {
-        method: 'POST',
-        body: JSON.stringify({
-          type: 'MEDIA_DELETE',
-          data: { key }
-        })
-      }));
-
       return new Response(JSON.stringify({ 
-        success: true,
-        message: 'File not in database but R2 cleanup attempted'
-      }), { status: 200 });
+        error: 'File not found'
+      }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
     // Delete from R2
     console.log('🗑️ Deleting from R2:', key);
     await env.MEDIA_BUCKET.delete(key);
     
-    // Delete from database
+    // Delete from database using the r2_key
     console.log('🗑️ Deleting from database');
-    const result = await env.DB.prepare(`
-      DELETE FROM media WHERE r2_key = ?
-    `).bind(key).run();
+    const result = await env.DB.prepare('DELETE FROM media WHERE r2_key = ?')
+      .bind(key)
+      .run();
     
     console.log('📊 Delete result:', result);
 
-    // Broadcast deletion
+    // Broadcast deletion via WebSocket with more details
     const id = env.WEBSOCKET_HANDLER.idFromName('default');
     const handler = env.WEBSOCKET_HANDLER.get(id);
     await handler.fetch(new Request('http://internal/broadcast', {
@@ -293,7 +278,7 @@ export async function deleteMedia(request: Request, env: Env, key: string): Prom
         type: 'MEDIA_DELETE',
         data: { 
           key,
-          id: file.id,
+          id: file.id,  // Include the ID for better client-side handling
           r2_key: file.r2_key
         }
       })
@@ -306,7 +291,9 @@ export async function deleteMedia(request: Request, env: Env, key: string): Prom
         id: file.id,
         r2_key: file.r2_key
       }
-    }));
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
 
   } catch (error) {
     console.error('❌ Delete error:', error);
@@ -362,29 +349,39 @@ export async function updateMedia(request: Request, env: Env, fileId: string): P
   try {
     const data = await request.json() as UpdateMediaRequest;
     
-    // Handle both filename updates and publish status
-    if ('filename' in data) {
-      const stmt = env.DB.prepare(`
-        UPDATE media 
-        SET filename = ?
-        WHERE id = ?
-      `);
-      await stmt.bind(data.filename, Number(fileId)).run();
-    } else if ('published' in data) {
-      const stmt = env.DB.prepare(`
-        UPDATE media 
-        SET published = ?
-        WHERE id = ?
-      `);
-      await stmt.bind(Number(data.published), Number(fileId)).run();
-    } else {
-      return new Response('Invalid update data', { status: 400 });
+    // Build dynamic update query based on provided fields
+    const updates: string[] = [];
+    const values: any[] = [];
+    
+    if (data.filename !== undefined) {
+      updates.push('filename = ?');
+      values.push(data.filename);
+    }
+    if (data.published !== undefined) {
+      updates.push('published = ?');
+      values.push(Number(data.published));
+    }
+    if (data.show_in_blog !== undefined) {
+      updates.push('show_in_blog = ?');
+      values.push(Number(data.show_in_blog));
+    }
+    if (data.show_in_pics !== undefined) {
+      updates.push('show_in_pics = ?');
+      values.push(Number(data.show_in_pics));
     }
 
-    // Get updated record
-    const result = await env.DB.prepare(`
-      SELECT * FROM media WHERE id = ?
-    `).bind(Number(fileId)).first();
+    // Add the ID to values array
+    values.push(Number(fileId));
+
+    // Execute update
+    const stmt = env.DB.prepare(`
+      UPDATE media 
+      SET ${updates.join(', ')}
+      WHERE id = ?
+      RETURNING *
+    `);
+    
+    const result = await stmt.bind(...values).first();
 
     if (!result) {
       return new Response('Media not found', { status: 404 });
@@ -399,6 +396,8 @@ export async function updateMedia(request: Request, env: Env, fileId: string): P
       size: result.size,
       uploadedAt: result.created_at,
       published: Boolean(result.published),
+      show_in_blog: Boolean(result.show_in_blog),
+      show_in_pics: Boolean(result.show_in_pics),
       hash: result.hash
     };
 

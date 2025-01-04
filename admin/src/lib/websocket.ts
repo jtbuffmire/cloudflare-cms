@@ -1,61 +1,67 @@
+import { browser } from '$app/environment';
+
 export class WebSocketClient {
-    private ws: WebSocket | null = null;
-    private reconnectTimeout: number = 1000; // Start with 1 second
-    
-    constructor(private url: string, private onMessage: (data: any) => void) {
+  private ws: WebSocket | null = null;
+  private reconnectTimeout: number = 1000;
+  private subscribers: Map<string, Array<(data: any) => void>> = new Map();
+  
+  constructor(private url: string = 'ws://localhost:8787/ws') {
+    if (browser) {
       this.connect();
     }
-  
-    private connect() {
-      this.ws = new WebSocket(this.url);
-  
-      this.ws.addEventListener('open', () => {
-        console.log('WebSocket connected');
-        this.reconnectTimeout = 1000; // Reset timeout on successful connection
-      });
-  
-      this.ws.addEventListener('message', (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          console.log('📨 WebSocket message received:', {
-            type: data.type,
-            action: data.action,
-            payload: data.payload
-          });
-          
-          // Add specific logging for media-related events
-          if (data.type === 'media') {
-            console.log('🖼️ Media event:', {
-              action: data.action,
-              id: data.payload?.id,
-              name: data.payload?.name
-            });
-          }
-          
-          this.onMessage(data);
-        } catch (err) {
-          console.error('❌ Failed to parse WebSocket message:', err);
-          console.log('Raw message:', event.data);
-        }
-      });
-  
-      this.ws.addEventListener('close', () => {
-        console.log('🔌 WebSocket disconnected, reconnecting...');
-        setTimeout(() => {
-          this.reconnectTimeout = Math.min(this.reconnectTimeout * 2, 30000);
-          this.connect();
-        }, this.reconnectTimeout);
-      });
-  
-      this.ws.addEventListener('error', (error) => {
-        console.error('❌ WebSocket error:', error);
-      });
-    }
-  
-    public close() {
-      if (this.ws) {
-        console.log('🔌 Closing WebSocket connection');
-        this.ws.close();
+  }
+
+  private connect() {
+    this.ws = new WebSocket(this.url);
+
+    this.ws.addEventListener('open', () => {
+      console.log('✅ WebSocket connected');
+      this.reconnectTimeout = 1000;
+    });
+
+    this.ws.addEventListener('message', (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        console.log('📨 WebSocket message received:', message);
+        
+        const handlers = this.subscribers.get(message.type) || [];
+        handlers.forEach(handler => handler(message.data));
+      } catch (err) {
+        console.error('❌ Failed to parse WebSocket message:', err);
       }
+    });
+
+    this.ws.addEventListener('close', () => {
+      console.log('🔌 WebSocket disconnected, reconnecting...');
+      setTimeout(() => {
+        this.reconnectTimeout = Math.min(this.reconnectTimeout * 2, 30000);
+        this.connect();
+      }, this.reconnectTimeout);
+    });
+
+    this.ws.addEventListener('error', (error) => {
+      console.error('❌ WebSocket error:', error);
+    });
+  }
+
+  public subscribe(type: string, handler: (data: any) => void) {
+    if (!this.subscribers.has(type)) {
+      this.subscribers.set(type, []);
+    }
+    this.subscribers.get(type)?.push(handler);
+    return () => this.unsubscribe(type, handler);
+  }
+
+  private unsubscribe(type: string, handler: (data: any) => void) {
+    const handlers = this.subscribers.get(type) || [];
+    this.subscribers.set(type, handlers.filter(h => h !== handler));
+  }
+
+  public close() {
+    if (this.ws) {
+      this.ws.close();
     }
   }
+}
+
+export const wsClient = new WebSocketClient();

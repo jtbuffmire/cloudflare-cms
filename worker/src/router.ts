@@ -1,8 +1,9 @@
 import { Env } from './types';
 import { getMedia, uploadMedia, getMediaFile, deleteMedia, updateMedia, cleanupOrphanedFiles } from './handlers/media';
 import { login } from './handlers/auth';
-import { createPost, getPost, getPosts, updatePost, deletePost } from './handlers/posts';
+import { createPost, getPost, getPosts, updatePost, deletePost, uploadPostImage, deletePostImage } from './handlers/posts';
 import { getSiteConfig, updateSiteConfig, debugDatabase, debugSiteConfig } from './handlers/site';
+import { generatePreview } from './handlers/preview';
 
 type RouteHandler<E> = (
   request: Request,
@@ -152,8 +153,36 @@ function createRouter(): Router<Env> {
     return cleanupOrphanedFiles(env);
   });
 
+  // Add these routes
+  router.post('/api/posts/:id/images', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
+    return uploadPostImage(request, env, ctx, params);
+  });
+
+  router.delete('/api/posts/:id/images/:imageId', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
+    return deletePostImage(request, env, ctx, params);
+  });
+
+  // Add route to serve images
+  router.get('/post-images/:key', async (request: Request, env: Env, ctx: ExecutionContext, params: { key: string }) => {
+    const obj = await env.POST_IMAGES.get(params.key);
+    
+    if (!obj) {
+        return new Response('Image not found', { status: 404 });
+    }
+
+    const headers = new Headers();
+    obj.writeHttpMetadata(headers);
+    headers.set('etag', obj.httpEtag);
+    headers.set('cache-control', 'public, max-age=31536000');
+    
+    return new Response(obj.body, { headers });
+  });
+
   // Debug line
   // console.log('Added site config routes:', Array.from(router.routes.get('GET')?.keys() || []));
+
+  // Add preview route
+  router.post('/api/preview', generatePreview);
 
   return router;
 }

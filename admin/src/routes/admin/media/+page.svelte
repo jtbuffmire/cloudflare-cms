@@ -13,6 +13,8 @@
     uploadedAt: string;
     published: boolean;
     hash?: string;
+    show_in_blog: boolean;
+    show_in_pics: boolean;
   }> = [];
 
   let loading = true;
@@ -78,14 +80,14 @@
         throw new Error(error.error || 'Failed to delete media');
       }
 
-      const result = await response.json();
-      console.log('✅ Delete response:', result);
-      
-      // Remove from UI immediately
+      // Remove from UI
       files = files.filter(file => !file.url.includes(mediaKey));
       
+      // Reload the media list to ensure sync with server
+      await loadMedia();
+      
     } catch (error) {
-      console.error('❌ Delete error:', error);
+      console.error('Delete error:', error);
       alert(error instanceof Error ? error.message : 'Failed to delete media');
     }
   }
@@ -243,6 +245,32 @@
     }
   }
 
+  async function toggleSetting(fileId: string, setting: 'published' | 'show_in_blog' | 'show_in_pics', value: boolean) {
+    const token = localStorage.getItem('token');
+    
+    try {
+      const response = await fetch(`${API_URL}/api/media/${fileId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ [setting]: value })
+      });
+
+      if (!response.ok) throw new Error('Failed to update media');
+      
+      // Update local state
+      files = files.map(file => 
+        file.id === fileId 
+          ? { ...file, [setting]: value }
+          : file
+      );
+    } catch (error) {
+      console.error('Update error:', error);
+    }
+  }
+
 </script>
 
 <div class="container mx-auto p-4 space-y-4">
@@ -315,24 +343,45 @@
             </div>
           {/if}
           <p class="text-sm opacity-70">{Math.round(file.size / 1024)}KB</p>
-          <div class="flex justify-between mt-2">
-            <button 
-              class="btn btn-sm {file.published ? 'variant-filled-primary' : 'variant-ghost-primary'}"
-              on:click={() => togglePublish(file.id, file.published)}
-            >
-              {file.published ? 'Published' : 'Publish'}
-            </button>
-            <button 
-              class="btn btn-sm variant-ghost-error" 
-              on:click={() => {
-                const key = file.url.split('/').pop();
-                if (key) handleDelete(key);
-              }}
-            >
-              Delete
-            </button>
-          </div>
-          
+          <div class="flex flex-col gap-2 mt-2">
+            <label class="flex items-center space-x-2">
+                <input
+                    type="checkbox"
+                    checked={file.show_in_blog}
+                    on:change={(e) => toggleSetting(file.id, 'show_in_blog', e.currentTarget.checked)}
+                    class="checkbox"
+                />
+                <span>Show in Blog</span>
+            </label>
+            
+            <label class="flex items-center space-x-2">
+                <input
+                    type="checkbox"
+                    checked={file.show_in_pics}
+                    on:change={(e) => toggleSetting(file.id, 'show_in_pics', e.currentTarget.checked)}
+                    class="checkbox"
+                />
+                <span>Show in Pics</span>
+            </label>
+        </div>
+        
+        <div class="flex justify-between mt-2">
+          <button 
+            class="btn btn-sm {file.published ? 'variant-filled-primary' : 'variant-ghost-primary'}"
+            on:click={() => togglePublish(file.id, file.published)}
+          >
+            {file.published ? 'Published' : 'Publish'}
+          </button>
+          <button 
+            class="btn btn-sm variant-ghost-error" 
+            on:click={() => {
+              const key = file.url.split('/').pop();
+              if (key) handleDelete(key);
+            }}
+          >
+            Delete
+          </button>
+        </div>
         </div>
       {/each}
     </div>

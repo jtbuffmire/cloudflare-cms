@@ -1,30 +1,27 @@
-import { WebSocketClient } from '$lib/websocket';
+import { wsClient } from '$lib/websocket';
 import { invalidate } from '$app/navigation';
+import { browser } from '$app/environment';
 
-export const load = ({ url }) => {
-  let wsClient;
-  if (typeof window !== 'undefined') {
-    wsClient = new WebSocketClient('ws://localhost:8787/ws', async (data) => {
-      console.log('WebSocket message received:', data);
-      
-      switch (data.type) {
-        case 'MEDIA_DELETE':
-          // Invalidate only the media data
-          await invalidate('app:media');
-          break;
-          
-        case 'MEDIA_UPDATE':
-          // Invalidate only the media data
-          await invalidate('app:media');
-          break;
-          
-        default:
-          console.log('Unknown WebSocket message type:', data.type);
-      }
+export const ssr = true;
+
+if (browser) {
+    wsClient.subscribe('POSTS_UPDATE', async (data) => {
+        console.log('📝 Admin: Received posts update:', data);
+        // Invalidate the posts data to trigger a refresh
+        await invalidate('app:posts');
     });
-  }
 
-  return {
-    wsClient
-  };
-}; 
+    wsClient.subscribe('SITE_CONFIG_UPDATE', async (data) => {
+        console.log('⚙️ Admin: Received site config update:', data);
+        await invalidate('app:config');
+    });
+}
+
+export function load() {
+    return {
+        meta: {
+            title: 'Admin',
+            description: 'Site administration'
+        }
+    };
+} 

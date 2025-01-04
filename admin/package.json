@@ -32,7 +32,7 @@
 		"@tiptap/pm": "^2.10.4",
 		"@tiptap/starter-kit": "^2.10.4",
 		"lottie-web": "^5.12.2",
-		"marked": "^15.0.4",
+		"marked": "^15.0.5",
 		"svelte-routing": "^2.13.0"
 	}
 }

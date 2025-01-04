@@ -1,17 +1,33 @@
 <script lang="ts">
     import { onMount } from 'svelte';
+    import MediaSelector from '$components/MediaSelector.svelte';
+    import IconSelector from '$components/IconSelector.svelte';
+    import { marked } from 'marked';
     
     let post: {
         id: number;
         title: string;
         slug: string;
         content: string;
+        markdown_content: string;
+        html_content: string;
+        metadata: {
+            description?: string;
+            tags?: string[];
+            coverImage?: string;
+            icon: string;
+            [key: string]: any;
+        };
         published: number;
     } | null = null;
     
     let loading = true;
     let error: string | null = null;
     let success = false;
+    let imageUploading = false;
+    let uploadError: string | null = null;
+    let showMediaSelector = false;
+    let showPreview = false;
 
     onMount(async () => {
         const id = window.location.pathname.split('/').pop();
@@ -26,12 +42,63 @@
             
             if (!response.ok) throw new Error('Failed to fetch post');
             post = await response.json();
+            // Initialize metadata if it doesn't exist
+            post.metadata = post.metadata || { tags: [], icon: 'ph:pencil-simple' };
         } catch (err) {
             error = err instanceof Error ? err.message : 'Failed to load post';
         } finally {
             loading = false;
         }
     });
+
+    async function handleImageUpload(event: Event) {
+        const input = event.target as HTMLInputElement;
+        if (!input.files?.length) return;
+        
+        const file = input.files[0];
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        imageUploading = true;
+        uploadError = null;
+        const token = localStorage.getItem('token');
+
+        try {
+            const response = await fetch(`http://localhost:8787/api/posts/${post?.id}/images`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                body: formData
+            });
+
+            if (!response.ok) throw new Error('Failed to upload image');
+            
+            const result = await response.json();
+            
+            // Insert image URL into markdown content at cursor position
+            const textarea = document.querySelector('textarea[name="markdown_content"]') as HTMLTextAreaElement;
+            const imageUrl = `http://localhost:8787/post-images/${result.r2_key}`;
+            const imageMarkdown = `![${file.name}](${imageUrl})`;
+            
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            
+            if (post) {
+                post.markdown_content = 
+                    post.markdown_content.substring(0, start) + 
+                    imageMarkdown + 
+                    post.markdown_content.substring(end);
+            }
+
+        } catch (err) {
+            uploadError = err instanceof Error ? err.message : 'Failed to upload image';
+        } finally {
+            imageUploading = false;
+            // Clear the input
+            input.value = '';
+        }
+    }
 
     async function handleSubmit() {
         if (!post) return;
@@ -47,7 +114,15 @@
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify(post)
+                body: JSON.stringify({
+                    ...post,
+                    metadata: {
+                        description: post.metadata.description,
+                        tags: post.metadata.tags,
+                        coverImage: post.metadata.coverImage,
+                        icon: post.metadata.icon
+                    }
+                })
             });
 
             if (!response.ok) throw new Error('Failed to update post');
@@ -61,77 +136,167 @@
             loading = false;
         }
     }
+
+    function handleImageSelect(url: string) {
+        // Insert the image URL at cursor position
+        const textarea = document.querySelector('textarea[name="markdown_content"]') as HTMLTextAreaElement;
+        const imageMarkdown = `![](${url})`;
+        
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        
+        if (post) {
+            post.markdown_content = 
+                post.markdown_content.substring(0, start) + 
+                imageMarkdown + 
+                post.markdown_content.substring(end);
+        }
+        
+        showMediaSelector = false;
+    }
+
+    function handleIconChange(icon: string) {
+        if (post) {
+            post.metadata.icon = icon;
+        }
+    }
+
+    function togglePreview() {
+        if (post) {
+            post.html_content = marked(post.markdown_content);
+            showPreview = !showPreview;
+        }
+    }
+
     $: isPublished = Boolean(post?.published);
 </script>
 
-<div class="container mx-auto p-4 space-y-4">
+<div class="container mx-auto p-4">
     <h2 class="h2">Edit Post</h2>
+    
+    <div class="h-[calc(100vh-8rem)] overflow-y-auto pr-4">
+        {#if loading}
+            <div class="card p-4">Loading post...</div>
+        {:else if error}
+            <div class="alert variant-filled-error">{error}</div>
+        {:else if !post}
+            <div class="alert variant-filled-error">Post not found</div>
+        {:else}
+            <form on:submit|preventDefault={handleSubmit}>
+                {#if success}
+                    <div class="alert variant-filled-success">
+                        Post updated successfully! Redirecting...
+                    </div>
+                {/if}
 
-    {#if loading}
-        <div class="card p-4">Loading post...</div>
-    {:else if error}
-        <div class="alert variant-filled-error">{error}</div>
-    {:else if !post}
-        <div class="alert variant-filled-error">Post not found</div>
-    {:else}
-        <form on:submit|preventDefault={handleSubmit} class="space-y-4">
-            {#if success}
-                <div class="alert variant-filled-success">
-                    Post updated successfully! Redirecting...
+                {#if uploadError}
+                    <div class="alert variant-filled-error">
+                        {uploadError}
+                    </div>
+                {/if}
+
+                <div class="grid grid-cols-2 gap-x-8">
+                    <div class="mt-6 pl-6">
+                        <span class="block mb-2">Title</span>
+                        <input
+                            type="text"
+                            bind:value={post.title}
+                            class="input w-full h-12 px-4"
+                            required
+                        />
+                    </div>
+
+                    <div class="mt-6 pl-6">
+                        <span class="block mb-2">Description</span>
+                        <input
+                            type="text"
+                            bind:value={post.metadata.description}
+                            class="input w-full h-12 px-4"
+                        />
+                    </div>
+
+                    <div class="mt-6 pl-6">
+                        <span class="block mb-2">Slug</span>
+                        <input
+                            type="text"
+                            bind:value={post.slug}
+                            class="input w-full h-12 px-4"
+                            pattern="[a-z0-9\-]+"
+                            title="Lowercase letters, numbers, and hyphens only"
+                            required
+                        />
+                    </div>
+
+                    <div class="mt-6 pl-6">
+                        <span class="block mb-2">Tags (comma-separated)</span>
+                        <input
+                            type="text"
+                            value={post.metadata.tags?.join(', ') || ''}
+                            class="input w-full h-12 px-4"
+                            on:input={(e) => {
+                                post.metadata.tags = e.currentTarget.value
+                                    .split(',')
+                                    .map(tag => tag.trim())
+                                    .filter(tag => tag);
+                            }}
+                        />
+                    </div>
                 </div>
-            {/if}
 
-            <label class="label">
-                <span>Title</span>
-                <input
-                    type="text"
-                    bind:value={post.title}
-                    class="input"
-                    required
-                />
-            </label>
+                <div class="mt-6 pl-6">
+                    <div class="flex flex-col gap-2">
+                        <span class="block mb-2">Optional Media</span>
+                        <div class="flex items-center space-x-2 ml-2">
+                            <IconSelector 
+                                value={post?.metadata?.icon || 'ph:pencil-simple'} 
+                                onChange={handleIconChange}
+                            />
+                            <button 
+                                type="button"
+                                class="btn variant-ghost"
+                                on:click={() => showMediaSelector = !showMediaSelector}
+                            >
+                                Insert Image
+                            </button>
+                            <button 
+                                type="button" 
+                                class="btn variant-ghost"
+                                on:click={togglePreview}
+                            >
+                                {showPreview ? 'Edit' : 'Preview'}
+                            </button>
+                        </div>
+                    </div>
+                    
+                    {#if showMediaSelector}
+                        <MediaSelector onSelect={handleImageSelect} />
+                    {/if}
+                    
+                    <div class="space-y-1">
+                        <span class="block mt-6">Blog Post Content</span>
+                        {#if showPreview}
+                            <div class="prose max-w-none p-4 bg-surface-100-800-token rounded-container-token">
+                                {@html post.html_content}
+                            </div>
+                        {:else}
+                            <textarea
+                                name="markdown_content"
+                                bind:value={post.markdown_content}
+                                class="textarea font-mono px-4 py-3"
+                                rows="15"
+                                required
+                            ></textarea>
+                        {/if}
+                    </div>
+                </div>
 
-            <label class="label">
-                <span>Slug</span>
-                <input
-                    type="text"
-                    bind:value={post.slug}
-                    class="input"
-                    pattern="[a-z0-9\-]+"
-                    title="Lowercase letters, numbers, and hyphens only"
-                    required
-                />
-            </label>
-
-            <label class="label">
-                <span>Content</span>
-                <textarea
-                    bind:value={post.content}
-                    class="textarea"
-                    rows="10"
-                    required
-                ></textarea>
-            </label>
-
-            <label class="label flex items-center space-x-2">
-                <input
-                    type="checkbox"
-                    bind:checked={isPublished}
-                    on:change={() => {
-                        isPublished = !isPublished;
-                        post.published = isPublished ? 1 : 0;
-                    }}
-                    class="checkbox"
-                />
-                <span>Published</span>
-            </label>
-
-            <div class="flex justify-end space-x-2">
-                <a href="/admin/posts" class="btn variant-ghost">Cancel</a>
-                <button type="submit" class="btn variant-filled-primary" disabled={loading}>
-                    {loading ? 'Saving...' : 'Save Changes'}
-                </button>
-            </div>
-        </form>
-    {/if}
+                <div class="flex justify-end space-x-2 mt-4">
+                    <a href="/admin/posts" class="btn variant-ghost">Cancel</a>
+                    <button type="submit" class="btn variant-filled-primary" disabled={loading}>
+                        {loading ? 'Saving...' : 'Save Changes'}
+                    </button>
+                </div>
+            </form>
+        {/if}
+    </div>
 </div>

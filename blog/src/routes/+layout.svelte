@@ -14,13 +14,20 @@
 
 	export let data;
 
-	const pages = [
-		{ name: 'projects', path: '/projects' },
-		{ name: 'blog', path: '/blog' },
-		{ name: 'pics', path: '/pics' },
-		{ name: 'about', path: '/about' },
-		{ name: 'contact', path: '/contact' }
-	];
+	$: {
+		console.log('🔍 siteConfig store changed:', $siteConfig);
+		console.log('🔍 Computed pages:', pages);
+	}
+
+	$: pages = Object.entries($siteConfig.nav_links || {})
+		.filter(([name, enabled]) => {
+			console.log(`🔍 Checking nav link ${name}:`, enabled);
+			return enabled === 1;
+		})
+		.map(([name]) => ({
+			name,
+			path: `/${name}`
+		}));
 
 	let prevTwoPages = ['', ''];
 	$: {
@@ -61,17 +68,6 @@
 		}
 	});
 
-	onMount(() => {
-		// Subscribe to site config updates
-		const unsubscribe = wsClient.subscribe('SITE_CONFIG_UPDATE', (data) => {
-			console.log('📝 Updating site config:', data);
-			siteConfig.set(data);
-		});
-
-		return () => {
-			unsubscribe();
-		};
-	});
 </script>
 
 <PageHead

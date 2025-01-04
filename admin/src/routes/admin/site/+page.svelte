@@ -23,7 +23,7 @@
         title: '',
         description: '',
         nav_links: {
-            projects: true,
+            projects: false,
             blog: true,
             pics: true,
             about: true,
@@ -81,81 +81,68 @@
     }
 </script>
 
-<div class="container mx-auto p-6">
-    <h1 class="text-2xl font-bold mb-2">Site Configuration</h1>
-    <h2 class="text-xl mb-6">Main Splash Page</h2>
+<div class="p-4">
+    <h2 class="h2 mb-4 pl-12">Site Configuration</h2>
+    
+    <form on:submit|preventDefault={handleSubmit}>
+        {#if saveMessage}
+            <div class="alert {saveMessage.includes('Error') ? 'variant-filled-error' : 'variant-filled-success'} ml-12">
+                {saveMessage}
+            </div>
+        {/if}
 
-    <form on:submit|preventDefault={handleSubmit} class="space-y-6">
-        <div class="space-y-4">
-            <!-- Basic Info -->
-            <div>
-                <label for="title" class="block text-sm font-medium">Site Title</label>
+        <!-- Single column for basic info -->
+        <div class="max-w-2xl">
+            <div class="mt-6 pl-12">
+                <span class="block mb-2">Site Title</span>
                 <input
                     type="text"
                     id="title"
                     bind:value={config.title}
-                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                    class="input w-full h-12 px-4"
                     required
                 />
             </div>
 
-            <div>
-                <label for="description" class="block text-sm font-medium">Tagline</label>
+            <div class="mt-6 pl-12">
+                <span class="block mb-2">Tagline</span>
                 <input
                     type="text"
                     id="description"
                     bind:value={config.description}
-                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                    class="input w-full h-12 px-4"
                 />
             </div>
-
-            <!-- Navigation Links -->
-            <fieldset class="space-y-4">
-                <legend class="text-sm font-medium">Navigation Links</legend>
-                
-                <div class="space-y-2">
-                    {#each Object.entries(config.nav_links) as [path, enabled]}
-                        <div class="flex items-center gap-2 p-3 border rounded-md">
-                            <input
-                                type="checkbox"
-                                id="nav-{path}"
-                                bind:checked={config.nav_links[path]}
-                                class="checkbox"
-                            />
-                            <label for="nav-{path}" class="text-sm capitalize">
-                                {path}
-                            </label>
-                        </div>
-                    {/each}
-                </div>
-            </fieldset>
-
-            {#if config.nav_links.projects}
-                <fieldset class="space-y-4 border-t pt-4">
-                    <legend class="text-lg font-medium">Projects Configuration</legend>
-                    
-                    <!-- Project entries will go here in the next step -->
-                    <div class="text-sm text-gray-500">
-                        Project configuration options will appear here.
-                    </div>
-                </fieldset>
-            {/if}
         </div>
 
-        <div class="flex items-center justify-between">
-            <button
-                type="submit"
-                class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
-                disabled={isSaving}
-            >
-                {isSaving ? 'Saving...' : 'Save Configuration'}
-            </button>
-            
-            {#if saveMessage}
-                <p class={saveMessage.includes('Error') ? 'text-red-500' : 'text-green-500'}>
-                    {saveMessage}
-                </p>
-            {/if}
+        <!-- Navigation Links Section - Single Row -->
+        <div class="mt-12 pl-12">
+            <span class="block mb-2">Navigation Links</span>
+            <div class="flex flex-wrap gap-4">
+                {#each Object.entries(config.nav_links).filter(([path]) => path !== 'projects') as [path, enabled]}
+                    <div class="flex items-center gap-2 p-2 card">
+                        <input
+                            type="checkbox"
+                            id="nav-{path}"
+                            bind:checked={config.nav_links[path]}
+                            class="checkbox"
+                        />
+                        <label for="nav-{path}" class="text-sm capitalize">
+                            {path}
+                        </label>
+                    </div>
+                {/each}
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="max-w-2xl pl-12">
+            <div class="flex justify-end space-x-2 mt-8">
+                <a href="/admin" class="btn variant-ghost">Cancel</a>
+                <button type="submit" class="btn variant-filled-primary" disabled={isSaving}>
+                    {isSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+            </div>
         </div>
     </form>
 </div>

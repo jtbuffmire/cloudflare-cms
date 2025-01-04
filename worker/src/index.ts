@@ -93,43 +93,6 @@ router.get('/ws', async (request: Request, env: Env) => {
 // debug database
 router.get('/api/debug', debugDatabase);
 
-router.get('/api/debug/tables', async (request: Request, env: Env) => {
-  try {
-    const tables = await env.DB.prepare(`
-      SELECT name FROM sqlite_master WHERE type='table';
-    `).all();
-    
-    const tableDetails = {};
-    
-    // Get details for each table
-    for (const table of tables.results) {
-      const rows = await env.DB.prepare(`
-        SELECT * FROM ${table.name};
-      `).all();
-      
-      tableDetails[table.name] = {
-        count: rows.results.length,
-        rows: rows.results
-      };
-    }
-    
-    return new Response(JSON.stringify({
-      tables: tables.results,
-      details: tableDetails
-    }, null, 2), {
-      headers: { 'Content-Type': 'application/json' }
-    });
-  } catch (error) {
-    return new Response(JSON.stringify({
-      error: 'Debug failed',
-      message: error.message
-    }), { 
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-});
-
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     console.log("🚀 Incoming request:", request.method, request.url);

@@ -5,13 +5,18 @@ compatibility_date = "2024-01-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "cms-db"
-database_id = "d147ff80-967a-4f76-9191-b8e304cce591" # replaced on 2025-01-03
+database_id = "415687bf-0a9c-43d4-8580-075990ccf98d" # replaced on 2025-01-03
 migrations_dir = "migrations/sql"
 
 [[r2_buckets]]
 binding = "MEDIA_BUCKET"
 bucket_name = "cms-media"
 preview_bucket_name = "cms-media-dev"
+
+[[r2_buckets]]
+binding = "POST_IMAGES"
+bucket_name = "post-images"
+preview_bucket_name = "post-images-dev"  # Optional, for local development
 
 [[durable_objects.bindings]]
 name = "WEBSOCKET_HANDLER"

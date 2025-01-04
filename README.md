@@ -406,3 +406,59 @@ npx wrangler d1 execute cms-db --local --file=./migrations/sql/0000_initial.sql
 - Include meaningful migration names
 - Test migrations locally before deployment
 - Back up data before running migrations in production
+
+Questions.
+Blog Integration - should I maintain compatibility with existing file-based posts, and if so, how would a user be able to upload a file-based post?
+
+Next Steps
+CMS Admin Panel Updates
+Add a markdown editor component (like CodeMirror or Monaco)
+Add image upload functionality
+Add preview functionality
+Support for frontmatter (metadata)
+Worker API Changes
+Expand post schema to include markdown content
+Add image upload/storage endpoints
+Add image serving endpoints
+Update post CRUD operations
+Storage Requirements
+Image storage solution (R2 or similar)
+Content storage updates (D1 schema changes)
+Blog Integration
+Update post rendering to handle markdown
+Update image handling
+Maintain compatibility with existing file-based posts
+
+Storage Layer (First)
+- Add preview endpoint
+a. Update D1 Schema
+- Add markdown content field
+- Add metadata fields for images
+- Update migrations
+
+b. Set up R2 Storage
+- Configure R2 bucket
+- Set up image upload/delete functions
+- Add image URL generation
+
+API Layer (Second)
+a. Update Post Endpoints
+- Modify POST/PUT to handle markdown
+- Add image upload endpoint
+- Add image serving endpoint
+- Add image deletion endpoint
+
+b. Add Preview Functionality
+- Add markdown-to-html conversion
+- Add preview endpoint
+
+
+looking at migrate.js and package.json, is this activated with npx migrate?
+
+
+Great. Next let's turn our attention to the R2 Storage
+- Configure R2 bucket
+- Set up image upload/delete functions
+- Add image URL generation
+
+

@@ -1,3 +1,4 @@
+// static site config
 export const siteConfig = {
     title: 'refact0r',
     description: 'my personal website and blog',
@@ -9,3 +10,5 @@ export const siteConfig = {
       { name: 'contact', path: '/contact' }
     ]
   };
+
+  

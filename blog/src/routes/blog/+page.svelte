@@ -1,14 +1,19 @@
 <script>
 	import { formatDate } from '$lib/js/utils.js';
+	import { posts } from '$lib/stores';
+	import { onMount } from 'svelte';
 
 	export let data;
+	
+	// Use the store value when available, fallback to initial data
+	$: displayPosts = $posts.length ? $posts : data.posts.filter(post => post.published === 1);
 </script>
 
 <main>
 	<h1>blog</h1>
 
 	<div class="posts">
-		{#each data.posts as post}
+		{#each displayPosts as post}
 			<a href={'/blog/' + post.slug} class="link" data-sveltekit-preload="off">
 				<div class="date">{formatDate(post.date)}</div>
 				<h2><iconify-icon icon={post.icon} />{post.name}<span class="arrow">-></span></h2>
