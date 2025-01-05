@@ -67,9 +67,9 @@ CREATE TABLE IF NOT EXISTS media (
 -- Create site_config table
 CREATE TABLE IF NOT EXISTS site_config (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL DEFAULT 'refact0r',
-    description TEXT NOT NULL DEFAULT 'hey there! i''m a student interested in comp sci, web dev, design, and more.',
-    nav_links TEXT DEFAULT '{"projects":true,"blog":true,"pics":true,"about":true,"contact":true}',
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    nav_links TEXT NOT NULL, -- This stores JSON
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -91,9 +91,9 @@ CREATE INDEX IF NOT EXISTS idx_post_images_hash ON post_images(hash);
 INSERT OR REPLACE INTO site_config (id, title, description, nav_links) 
 VALUES (
     1,
-    'refact0r',
-    'hey there! i''m a student interested in comp sci, web dev, design, and more.',
-    '{"projects":true,"blog":true,"pics":true,"about":true,"contact":true}'
+    'mealz on wheels',
+    'a travelin girl.',
+    '{"projects":0,"blog":1,"pics":1,"about":1,"contact":1}'
 );
 
 -- Record this migration

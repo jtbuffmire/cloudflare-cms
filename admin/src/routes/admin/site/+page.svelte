@@ -11,11 +11,11 @@
         title: string;
         description: string;
         nav_links: {
-            projects: boolean;
-            blog: boolean;
-            pics: boolean;
-            about: boolean;
-            contact: boolean;
+            projects: number;
+            blog: number;
+            pics: number;
+            about: number;
+            contact: number;
         };
     }
 
@@ -23,11 +23,11 @@
         title: '',
         description: '',
         nav_links: {
-            projects: false,
-            blog: true,
-            pics: true,
-            about: true,
-            contact: true
+            projects: 0,
+            blog: 1,
+            pics: 1,
+            about: 1,
+            contact: 1
         }
     };
 
@@ -54,6 +54,16 @@
         }
     });
 
+    function prepareConfig(config: SiteConfig): SiteConfig {
+        return {
+            ...config,
+            nav_links: Object.fromEntries(
+                Object.entries(config.nav_links)
+                    .map(([key, value]) => [key, Number(value)])
+            )
+        };
+    }
+
     async function handleSubmit() {
         isSaving = true;
         saveMessage = '';
@@ -64,7 +74,7 @@
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(config)
+                body: JSON.stringify(prepareConfig(config))
             });
 
             if (response.ok) {

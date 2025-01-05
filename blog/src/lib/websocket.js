@@ -11,29 +11,47 @@ export class WebSocketClient {
     this.subscribers = new Map();
     
     if (browser) {
+      console.log('🔄 Initializing WebSocket client for:', url);
       this.connect();
     }
   }
 
   connect() {
     try {
-      console.log('📡 Connecting to WebSocket...');
+      console.log('📡 Attempting WebSocket connection to:', this.url);
       this.ws = new WebSocket(this.url);
 
       this.ws.addEventListener('open', () => {
-        console.log('✅ WebSocket connected');
+        console.log('✅ WebSocket connected successfully');
         this.reconnectAttempts = 0;
+        // Send a test message to verify connection
+        this.ws.send(JSON.stringify({ type: 'HELLO' }));
       });
 
       this.ws.addEventListener('message', (event) => {
+        console.log('📨 [WebSocketClient] Raw message received:', event.data);
         try {
           const message = JSON.parse(event.data);
-          console.log('🔔 WebSocket message received:', message);
+          console.log('🔔 [WebSocketClient] Parsed message:', {
+            type: message.type,
+            data: message.data
+          });
           
-          const handlers = this.subscribers.get(message.type) || [];
-          handlers.forEach(handler => handler(message.data));
+          const handlers = this.subscribers.get(message.type);
+          if (handlers?.length) {
+            console.log(`📣 [WebSocketClient] Found ${handlers.length} handlers for type:`, message.type);
+            handlers.forEach(handler => {
+              console.log(`🎯 [WebSocketClient] Executing handler for ${message.type}`);
+              handler(message.data);
+            });
+          } else {
+            console.warn(`⚠️ [WebSocketClient] No handlers found for message type:`, message.type);
+            console.log(`📝 [WebSocketClient] Current subscribers:`, 
+              Array.from(this.subscribers.keys()));
+          }
         } catch (err) {
-          console.error('❌ Failed to parse WebSocket message:', err);
+          console.error('❌ [WebSocketClient] Failed to parse message:', err);
+          console.log('📄 [WebSocketClient] Raw message was:', event.data);
         }
       });
 

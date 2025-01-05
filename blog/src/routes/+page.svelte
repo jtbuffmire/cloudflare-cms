@@ -23,21 +23,21 @@
 
 	// Default nav links as fallback
 	const defaultNavLinks = {
-		projects: true,
-		blog: true,
-		pics: true,
-		about: true,
-		contact: true
+		projects: 0,
+		blog: 1,
+		pics: 1,
+		about: 1,
+		contact: 1
 	};
 </script>
 
 <main>
 	<div class="container">
 		<div class="row">
-			<h1>{$siteConfig.title || 'refact0r'}</h1>
+			<h1>{$siteConfig.title || 'mealz on wheels'}</h1>
 			<div class="pfpstart"></div>
 		</div>
-		<p>{$siteConfig.description || "hey there! i'm a student interested in comp sci, web dev, design, and more."}</p>
+		<p>{$siteConfig.description || "a travelin girl."}</p>
 		<nav>
 			{#if ($siteConfig.nav_links?.projects ?? defaultNavLinks.projects)}
 				<a class="nav" href="/projects">

@@ -4,6 +4,8 @@ import { browser } from '$app/environment';
 import { wsClient } from './websocket';
 import { invalidate } from '$app/navigation';
 
+console.log('🔄 [stores] Initializing stores...');
+
 function formatNavLinks(config) {
     return {
         ...config,
@@ -34,7 +36,7 @@ export const siteConfig = writable({
     pics: 1,
     about: 1,
     contact: 1
-}
+  }
 });
 
 // Posts store
@@ -47,8 +49,9 @@ if (browser) {
     fetch('http://localhost:8787/api/site/config')
         .then(res => res.json())
         .then(data => {
-            console.log('📝 Loaded initial site config:', data);
-            siteConfig.set(formatNavLinks(data));
+            const formattedConfig = formatNavLinks(data);
+            console.log('📝 Loaded initial site config:', formattedConfig);
+            siteConfig.set(formattedConfig);
         })
         .catch(err => console.error('❌ Failed to load site config:', err));
 
@@ -64,7 +67,7 @@ if (browser) {
         })
         .catch(err => console.error('Failed to load posts:', err));
 
-    console.log('🔌 Setting up WebSocket subscriptions...');
+    console.log('🔌 [stores] Setting up WebSocket subscriptions...');
     
     // Subscribe to WebSocket updates
     wsClient.subscribe('POSTS_UPDATE', async (data) => {
@@ -97,18 +100,18 @@ if (browser) {
 
     // Site config subscription
     wsClient.subscribe('SITE_CONFIG_UPDATE', async (data) => {
-        console.log('🔄 SITE_CONFIG_UPDATE received in store:', data);
-        if (!data.config) {
-            console.warn('⚠️ No config in data:', data);
+        console.log('🔄 [stores] SITE_CONFIG_UPDATE received:', data);
+        if (!data?.config) {
+            console.warn('⚠️ [stores] Invalid config data:', data);
             return;
         }
+        
         const formattedConfig = formatNavLinks(data.config);
-        console.log('🔍 Formatted config:', formattedConfig);
-        console.log('🔍 Current store value:', get(siteConfig));
+        console.log('📝 [stores] Updating site config with:', formattedConfig);
         siteConfig.set(formattedConfig);
-        console.log('🔍 New store value:', get(siteConfig));
         await invalidate('app:config');
     });
+    console.log('✅ [stores] Subscriptions set up');
 }
 
 function formatPost(post) {

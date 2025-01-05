@@ -2,6 +2,7 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { enhancedImages } from '@sveltejs/enhanced-img';
 import { defineConfig } from 'vitest/config';
 import Icons from 'unplugin-icons/vite';
+import path from 'path';
 
 export default defineConfig({
 	plugins: [
@@ -20,5 +21,8 @@ export default defineConfig({
 				additionalData: '@use "src/variables" as *;'
 			}
 		}
+	},
+	define: {
+		'process.env.API_URL': JSON.stringify(process.env.API_URL || 'http://localhost:8787')
 	}
 });

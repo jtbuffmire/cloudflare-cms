@@ -2,6 +2,7 @@ import adapter from '@sveltejs/adapter-cloudflare';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte'; 
 import { mdsvex, escapeSvelte } from 'mdsvex';
 import { codeToHtml } from 'shiki';
+import * as sass from 'sass';
 
 const mdsvexOptions = {
 	extensions: ['.md'],
@@ -23,7 +24,16 @@ const mdsvexOptions = {
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
 	extensions: ['.svelte', '.md'],
-	preprocess: [vitePreprocess(), mdsvex(mdsvexOptions)],
+	preprocess: [
+		vitePreprocess({
+			style: {
+				scss: {
+					implementation: sass,
+				}
+			}
+		}),
+		mdsvex(mdsvexOptions)
+	],
 	kit: {
 		// adapter-auto only supports some environments, see https://kit.svelte.dev/docs/adapter-auto for a list.
 		// If your environment is not supported or you settled on a specific environment, switch out the adapter.

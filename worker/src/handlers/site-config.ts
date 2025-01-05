@@ -19,67 +19,39 @@ export async function getSiteConfig(request: Request, env: Env): Promise<Respons
 }
 
 export async function updateSiteConfig(request: Request, env: Env): Promise<Response> {
-    try {
-        const config = await request.json();
-        console.log('🔍 Received config update:', config);
-        
-        // Update the database
-        await env.DB.prepare(
-            `UPDATE site_config 
-             SET title = ?, 
-                 description = ?, 
-                 nav_links = ?
-             WHERE id = 1`
-        ).bind(
-            config.title,
-            config.description,
-            JSON.stringify(config.nav_links)
-        ).run();
+    const updates = await request.json() as {
+        title: string;
+        description: string;
+        nav_links: any[];
+    };
+    console.log('🔍 Received config update:', updates);
+    
+    // 1. Update the database
+    await env.DB.prepare(
+        `UPDATE site_config 
+            SET title = ?, 
+                description = ?, 
+                nav_links = ?
+            WHERE id = 1`
+    ).bind(
+        updates.title,
+        updates.description,
+        JSON.stringify(updates.nav_links)
+    ).run();
 
-        // Broadcast the change
-        try {
-            console.log('🔍 Getting WebSocket handler...');
-            const id = env.WEBSOCKET_HANDLER.idFromName('default');
-            console.log('🔍 WebSocket handler ID:', id);
-            
-            const handler = env.WEBSOCKET_HANDLER.get(id);
-            console.log('🔍 Got WebSocket handler:', handler);
-            
-            if (!handler) {
-                throw new Error('No WebSocket handler found');
-            }
+    // 2. Broadcast the updates we already have
+    const id = env.WEBSOCKET_HANDLER.idFromName('default');
+    const handler = env.WEBSOCKET_HANDLER.get(id);
+    await handler.fetch(new Request('http://internal/broadcast', {
+        method: 'POST',
+        body: JSON.stringify({
+            type: 'SITE_CONFIG_UPDATE',
+            data: { config: updates }  // Use the updates directly
+        })
+    }));
 
-            const broadcastMessage = {
-                type: 'SITE_CONFIG_UPDATE',
-                data: { config }
-            };
-            
-            console.log('📢 Broadcasting message:', JSON.stringify(broadcastMessage));
-            
-            const broadcastResponse = await handler.fetch(new Request('http://internal/broadcast', {
-                method: 'POST',
-                body: JSON.stringify(broadcastMessage)
-            }));
-            
-            const responseText = await broadcastResponse.text();
-            console.log('📢 Broadcast response:', responseText);
-            
-            if (!broadcastResponse.ok) {
-                throw new Error(`Broadcast failed: ${responseText}`);
-            }
-        } catch (broadcastError) {
-            console.error('❌ Broadcast error:', broadcastError);
-            // Continue execution even if broadcast fails
-        }
-
-        return new Response(JSON.stringify(config), {
-            headers: { 'Content-Type': 'application/json' }
-        });
-    } catch (error) {
-        console.error('❌ Failed to update site config:', error);
-        return new Response(
-            JSON.stringify({ error: 'Failed to update site config' }), 
-            { status: 500, headers: { 'Content-Type': 'application/json' } }
-        );
-    }
+    // 3. Return the same updates
+    return new Response(JSON.stringify({ success: true }), {
+        headers: { 'Content-Type': 'application/json' }
+    })
 }

@@ -5,8 +5,7 @@ import { getPosts, getPost, createPost, updatePost, deletePost } from './handler
 import { requireAuth } from './middleware/auth';
 import { login } from './handlers/auth';
 import { uploadMedia, getMedia, getMediaFile, updateMedia, deleteMedia } from './handlers/media';
-import { debugDatabase } from './handlers/site';
-import { WebSocketHandler } from './websocket'; 
+import { WebSocketHandler } from './durable_objects/WebSocketHandler'; 
 
 export { WebSocketHandler };
 
@@ -89,9 +88,6 @@ router.get('/ws', async (request: Request, env: Env) => {
   const handler = env.WEBSOCKET_HANDLER.get(id);
   return handler.fetch(request);
 });
-
-// debug database
-router.get('/api/debug', debugDatabase);
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {

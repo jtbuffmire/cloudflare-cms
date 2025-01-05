@@ -452,13 +452,66 @@ b. Add Preview Functionality
 - Add markdown-to-html conversion
 - Add preview endpoint
 
+Preview
+Websockets
 
-looking at migrate.js and package.json, is this activated with npx migrate?
 
 
-Great. Next let's turn our attention to the R2 Storage
-- Configure R2 bucket
-- Set up image upload/delete functions
-- Add image URL generation
+
+What next?
+I think we can do all the pages that don't get updated regularly in the site_config dashboard of the admin panel. 
+This means adding to the database 
+   Booolean (1/0) for whether an image tagline is displayed in Pics
+   Description of each image that can be used for SEO but not displayed in the Pics page unless the boolean is 1
+   Description of pics page (replaces "just some random photos. taken on pixel 8, pixel 5a, pixel 2.")
+   Description in about page (replaces "hey there! i'm a student in seattle who goes by the name refact0r online. i'm interested in comp sci, web dev, design, among other topics. i'm passionate about building websites and apps that are both functional and beautiful.")  
+   "links" heading for subheading one in about page
+   github/>
+   discord/>   
+   "languages" heading for subheading two in about page
+   web -> js / ts / html / css / scss
+other -> python / dart / java
+   String
+   JSON
+   tech
+frameworks -> sveltekit / flutter / quart
+databases -> mongo / sqlite / isar
+cms -> sanity / decap
+tools -> vscode / figma / inkscape
+this site
+github repo/>
+analytics/>
+stack -> sveltekit / mdsvex / vite / vercel
+fonts -> space mono / space grotesk
+bg
+bg-2
+bg-3
+txt-3
+txt-2
+txt
+txt-0
+pink
+purple
+blue
+webring
+<- catppuccin webring ->
+Contact tagline
+public email 
+private email 
+discord handle 
+
+
+Creating these database tables and API endpoints
+Setting up the store to handle these new data types
+3. Creating the admin UI components
+Updating the blog frontend
+Or would you prefer to see the complete plan first? Let me know which approach you'd prefer and we can proceed step by step.
+The advantage of doing all pages together is:
+Single database migration
+Consistent API pattern
+Reusable admin components
+Single store update
+One-time testing of the full flow
+Would you like to proceed with the database/API layer first?
 
 

@@ -20,34 +20,57 @@ interface SiteConfig {
   };
 }
 
+interface SiteConfigData {
+  title: string;
+  description: string;
+  nav_links: Record<string, boolean>;
+}
+
+function normalizeNavLinks(links: Record<string, boolean | number>): Record<string, number> {
+  return Object.fromEntries(
+    Object.entries(links).map(([key, value]) => [
+      key,
+      typeof value === 'boolean' ? (value ? 1 : 0) : value
+    ])
+  );
+}
+
 export async function getSiteConfig(request: Request, env: Env): Promise<Response> {
   try {
     console.log('📖 Getting site config...');
     
-    const result = await env.DB.prepare(`
+    const { results } = await env.DB.prepare(`
       SELECT title, description, nav_links
       FROM site_config 
       WHERE id = 1
-    `).first();
+    `).all();
+    const result = results[0];
     
-    console.log('📝 Retrieved site config:', result);
+    console.log('📝 Raw database result:', result);
 
     // Default nav_links if none exist in database
     const defaultNavLinks = {
-      projects: true,
-      blog: true,
-      pics: true,
-      about: true,
-      contact: true
+        projects: 0,
+        blog: 1,
+        pics: 1,
+        about: 1,
+        contact: 1
     };
+
+    // Parse nav_links and ensure all values are numbers
+    const parsedNavLinks = result?.nav_links ? 
+      Object.fromEntries(
+        Object.entries(JSON.parse(result.nav_links))
+          .map(([key, value]) => [key, Number(value)])
+      ) : defaultNavLinks;
 
     const config = {
-      title: result?.title || 'refact0r',
-      description: result?.description || "hey there! i'm a student interested in comp sci, web dev, design, and more.",
-      nav_links: result?.nav_links ? JSON.parse(result.nav_links) : defaultNavLinks
+      title: result?.title || 'mealz on wheels',
+      description: result?.description || "a travelin girl.",
+      nav_links: parsedNavLinks
     };
 
-    console.log('✅ Returning config:', config);
+    console.log('✅ Processed config:', config);
 
     return new Response(JSON.stringify(config), {
       headers: { 
@@ -59,7 +82,7 @@ export async function getSiteConfig(request: Request, env: Env): Promise<Respons
     console.error('❌ Error getting site config:', error);
     return new Response(JSON.stringify({ 
       error: 'Failed to get site config',
-      details: error.message 
+      details: error instanceof Error ? error.message : String(error)
     }), { 
       status: 500,
       headers: { 
@@ -72,7 +95,7 @@ export async function getSiteConfig(request: Request, env: Env): Promise<Respons
 
 export async function updateSiteConfig(request: Request, env: Env): Promise<Response> {
   try {
-    const data = await request.json();
+    const data = await request.json() as SiteConfigData;
     console.log('📝 Updating site config:', data);
 
     // Validate required fields
@@ -84,21 +107,32 @@ export async function updateSiteConfig(request: Request, env: Env): Promise<Resp
       });
       return new Response(JSON.stringify({ 
         error: 'Missing required fields',
-        details: data
+        details: data as Record<string, unknown>
       }), { status: 400 });
     }
 
-    // First try to insert, if that fails then update
-    const result = await env.DB.prepare(`
+    const normalizedLinks = normalizeNavLinks(data.nav_links);
+    
+    // Update database
+    await env.DB.prepare(`
       INSERT OR REPLACE INTO site_config (id, title, description, nav_links, updated_at)
       VALUES (1, ?, ?, ?, CURRENT_TIMESTAMP)
     `).bind(
       data.title,
       data.description,
-      JSON.stringify(data.nav_links)
+      JSON.stringify(normalizedLinks)
     ).run();
 
-    console.log('📊 Update result:', result);
+    // Broadcast update via WebSocket
+    const id = env.WEBSOCKET_HANDLER.idFromName('default');
+    const handler = env.WEBSOCKET_HANDLER.get(id);
+    await handler.fetch('http://internal/broadcast', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 'SITE_CONFIG_UPDATE',
+        data: { config: { ...data, nav_links: normalizedLinks } }
+      })
+    });
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { 
@@ -110,80 +144,8 @@ export async function updateSiteConfig(request: Request, env: Env): Promise<Resp
     console.error('❌ Update site config error:', error);
     return new Response(JSON.stringify({ 
       error: 'Failed to update site config',
-      details: error.message 
+      details: error instanceof Error ? error.message : String(error)
     }), { status: 500 });
   }
 }
 
-export async function debugDatabase(request: Request, env: Env): Promise<Response> {
-  try {
-    // Check if table exists
-    const tables = await env.DB.prepare(`
-      SELECT name FROM sqlite_master WHERE type='table' AND name='site_config';
-    `).all();
-    console.log('📊 Tables:', tables);
-
-    // Get table schema
-    const schema = await env.DB.prepare(`
-      SELECT sql FROM sqlite_master WHERE type='table' AND name='site_config';
-    `).first();
-    console.log('📋 Schema:', schema);
-
-    // Count rows
-    const count = await env.DB.prepare(`
-      SELECT COUNT(*) as count FROM site_config;
-    `).first();
-    console.log('🔢 Row count:', count);
-
-    // Get all rows
-    const data = await env.DB.prepare(`
-      SELECT * FROM site_config;
-    `).all();
-    console.log('📝 Data:', data);
-
-    return new Response(JSON.stringify({
-      tables,
-      schema,
-      count,
-      data
-    }, null, 2), {
-      headers: { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      }
-    });
-  } catch (error) {
-    console.error('❌ Debug error:', error);
-    return new Response(JSON.stringify({ error: error.message }), { 
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-}
-
-export async function debugSiteConfig(request: Request, env: Env): Promise<Response> {
-  try {
-    // Get table info
-    const schema = await env.DB.prepare(`
-      PRAGMA table_info(site_config);
-    `).all();
-    
-    // Get current data
-    const data = await env.DB.prepare(`
-      SELECT * FROM site_config;
-    `).all();
-
-    return new Response(JSON.stringify({
-      schema: schema.results,
-      data: data.results
-    }, null, 2), {
-      headers: { 'Content-Type': 'application/json' }
-    });
-  } catch (error) {
-    console.error('Debug error:', error);
-    return new Response(JSON.stringify({ error: error.message }), { 
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-}

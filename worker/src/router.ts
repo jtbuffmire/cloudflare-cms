@@ -2,7 +2,7 @@ import { Env } from './types';
 import { getMedia, uploadMedia, getMediaFile, deleteMedia, updateMedia, cleanupOrphanedFiles } from './handlers/media';
 import { login } from './handlers/auth';
 import { createPost, getPost, getPosts, updatePost, deletePost, uploadPostImage, deletePostImage } from './handlers/posts';
-import { getSiteConfig, updateSiteConfig, debugDatabase, debugSiteConfig } from './handlers/site';
+import { getSiteConfig, updateSiteConfig } from './handlers/site';
 import { generatePreview } from './handlers/preview';
 
 type RouteHandler<E> = (
@@ -136,8 +136,6 @@ function createRouter(): Router<Env> {
   // Site config routes
   router.get('/api/site/config', getSiteConfig);
   router.put('/api/site/config', updateSiteConfig);
-  router.get('/api/debug/db', debugDatabase);
-  router.get('/api/debug/site-config', debugSiteConfig);
 
   // WebSocket route
   router.get('/ws', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
