@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid';
 import { Env } from '../types';
+import { marked } from 'marked';
 
 interface PostQueryParams {
   page?: number;
@@ -107,11 +108,26 @@ export async function getPosts(request: Request, env: Env, ctx: ExecutionContext
   }
 }
 
-export async function createPost(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+export async function createPost(request: Request, env: Env): Promise<Response> {
   try {
-    const body = await request.json() as CreatePostBody;
-    console.log('📝 Received post data:', body);
-    
+    const data = await request.json();
+    console.log('📝 Received post data:', data);
+
+    // Validate required fields
+    if (!data.title?.trim() || !data.slug?.trim() || !data.markdown_content?.trim()) {
+      return new Response(JSON.stringify({
+        error: 'Missing required fields',
+        details: { 
+          title: !data.title?.trim() ? 'Title is required' : null,
+          slug: !data.slug?.trim() ? 'Slug is required' : null,
+          content: !data.markdown_content?.trim() ? 'Content is required' : null
+        }
+      }), { 
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     const { 
       title, 
       slug, 
@@ -120,23 +136,7 @@ export async function createPost(request: Request, env: Env, ctx: ExecutionConte
       html_content,
       metadata = {}, 
       published = false 
-    } = body;
-
-    // Validate required fields
-    if (!title || !slug || !content) {
-      console.log('❌ Missing required fields:', { title, slug, content });
-      return new Response(
-        JSON.stringify({ 
-          error: 'Missing required fields', 
-          required: ['title', 'slug', 'content'],
-          received: { title, slug, content }
-        }), 
-        { 
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
-    }
+    } = data;
 
     // Check if slug already exists
     const existingPost = await env.DB.prepare('SELECT slug FROM posts WHERE slug = ?')
@@ -594,4 +594,47 @@ export async function deletePostImage(
             headers: { 'Content-Type': 'application/json' }
         });
     }
+}
+
+export async function handlePreview(request: Request): Promise<Response> {
+  try {
+    const data = await request.json();
+    console.log('Preview request data:', data);
+
+    // Check for either 'markdown' or 'markdown_content'
+    const markdownContent = data.markdown || data.markdown_content;
+
+    if (!markdownContent) {
+      return new Response(JSON.stringify({
+        error: 'Missing markdown content',
+        receivedData: data // Log what we received for debugging
+      }), { 
+        status: 400,
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
+    }
+
+    const html = marked(markdownContent);
+    return new Response(JSON.stringify({ html }), {
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+  } catch (error) {
+    console.error('Preview error:', error);
+    return new Response(JSON.stringify({
+      error: 'Failed to generate preview',
+      details: error instanceof Error ? error.message : String(error)
+    }), { 
+      status: 500,
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+  }
 }

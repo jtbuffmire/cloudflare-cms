@@ -5,6 +5,10 @@ interface FileMetadata {
   filename: string;
   size: number;
   type: string;
+  width: number | null;
+  height: number | null;
+  aspect_ratio: number | null;
+  original_url: string | null;
 }
 
 interface UpdateMediaRequest {
@@ -12,6 +16,8 @@ interface UpdateMediaRequest {
   published?: boolean;
   show_in_blog?: boolean;
   show_in_pics?: boolean;
+  text_description?: string | null;
+  text_description_visible?: boolean;
 }
 
 interface MediaFile {
@@ -25,25 +31,18 @@ interface MediaFile {
   hash?: string;
 }
 
-export async function getMedia(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+export async function getMedia(request: Request, env: Env): Promise<Response> {
   try {
     const { results } = await env.DB.prepare(`
-      SELECT 
-        id,
-        filename,
-        r2_key,
-        mime_type,
-        size,
-        created_at,
-        published,
-        show_in_blog,
-        show_in_pics
-      FROM media 
+      SELECT * FROM media
       ORDER BY created_at DESC
     `).all();
 
+    console.log('📤 Raw DB results:', results);
+
+    // Format the files before sending
     const files = results.map(file => ({
-      id: String(file.id),
+      id: file.id,
       name: file.filename,
       url: `http://localhost:8787/api/media/${file.r2_key}`,
       type: file.mime_type,
@@ -51,17 +50,21 @@ export async function getMedia(request: Request, env: Env, ctx: ExecutionContext
       uploadedAt: file.created_at,
       published: Boolean(file.published),
       show_in_blog: Boolean(file.show_in_blog),
-      show_in_pics: Boolean(file.show_in_pics)
+      show_in_pics: Boolean(file.show_in_pics),
+      text_description: file.text_description,
+      text_description_visible: Boolean(file.text_description_visible)
     }));
 
-    return new Response(JSON.stringify(files), { 
-      headers: { 'Content-Type': 'application/json' } 
+    console.log('📤 Formatted files:', files);
+
+    return new Response(JSON.stringify(files), {
+      headers: { 'Content-Type': 'application/json' }
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: 'Failed to fetch media' }), { 
-      status: 500,
-      headers: { 'Content-Type': 'application/json' } 
-    });
+    return new Response(JSON.stringify({ 
+      error: 'Failed to get media',
+      details: error instanceof Error ? error.message : String(error)
+    }), { status: 500 });
   }
 }
 
@@ -76,11 +79,38 @@ export async function uploadMedia(request: Request, env: Env): Promise<Response>
       return new Response('No file provided', { status: 400 });
     }
 
-    // Compute file hash
+    // Get file metadata including dimensions
+    const metadata: FileMetadata = {
+      filename: file.name,
+      size: file.size,
+      type: file.type,
+      width: null,
+      height: null,
+      aspect_ratio: null,
+      original_url: null
+    };
+
+    // Get the array buffer once and reuse it
     const arrayBuffer = await file.arrayBuffer();
+
+    // Compute file hash
     const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    // If it's an image, get dimensions
+    if (file.type.startsWith('image/')) {
+      try {
+        const blob = new Blob([arrayBuffer], { type: file.type });
+        const imageBitmap = await createImageBitmap(blob);
+        
+        metadata.width = imageBitmap.width;
+        metadata.height = imageBitmap.height;
+        metadata.aspect_ratio = imageBitmap.width / imageBitmap.height;
+      } catch (error) {
+        console.warn('Failed to get image dimensions:', error);
+      }
+    }
 
     console.log('📝 File details:', {
       name: file.name,
@@ -148,8 +178,12 @@ export async function uploadMedia(request: Request, env: Env): Promise<Response>
         content_type,
         hash,
         mime_type,
-        size
-      ) VALUES (?, ?, ?, ?, ?, ?)
+        size,
+        original_url,
+        width,
+        height,
+        aspect_ratio
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       RETURNING *
     `).bind(
       sanitizedFileName,
@@ -157,7 +191,11 @@ export async function uploadMedia(request: Request, env: Env): Promise<Response>
       file.type,
       hash,
       file.type,
-      file.size
+      file.size,
+      `http://localhost:8787/api/media/${r2Key}`,
+      null, // width - to be populated later
+      null, // height - to be populated later
+      null  // aspect_ratio - to be populated later
     ).first();
 
     if (!result) {
@@ -166,17 +204,30 @@ export async function uploadMedia(request: Request, env: Env): Promise<Response>
 
     console.log('✅ Database insert complete:', result);
 
-    return new Response(JSON.stringify({
+    // Format response data
+    const responseData = {
       id: result.id,
       name: result.filename,
-      url: `http://localhost:8787/api/media/${r2Key}`,
+      url: `http://localhost:8787/api/media/${result.r2_key}`,
       type: result.mime_type,
       size: result.size,
       uploadedAt: result.created_at,
-      published: result.published,
+      published: Boolean(result.published),
       hash: result.hash
-    }), {
-      status: 201,
+    };
+
+    // Broadcast creation via WebSocket
+    const doId = env.WEBSOCKET_HANDLER.idFromName('default');
+    const handler = env.WEBSOCKET_HANDLER.get(doId);
+    await handler.fetch('https://internal/broadcast', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 'MEDIA_CREATE',
+        data: responseData
+      })
+    });
+
+    return new Response(JSON.stringify(responseData), {
       headers: { 'Content-Type': 'application/json' }
     });
 
@@ -269,23 +320,18 @@ export async function deleteMedia(request: Request, env: Env, key: string): Prom
     
     console.log('📊 Delete result:', result);
 
-    // Broadcast deletion via WebSocket with more details
-    const id = env.WEBSOCKET_HANDLER.idFromName('default');
-    const handler = env.WEBSOCKET_HANDLER.get(id);
-    await handler.fetch(new Request('http://internal/broadcast', {
+    // Broadcast deletion via WebSocket
+    const doId = env.WEBSOCKET_HANDLER.idFromName('default');
+    const handler = env.WEBSOCKET_HANDLER.get(doId);
+    await handler.fetch('https://internal/broadcast', {
       method: 'POST',
       body: JSON.stringify({
         type: 'MEDIA_DELETE',
-        data: { 
-          key,
-          id: file.id,  // Include the ID for better client-side handling
-          r2_key: file.r2_key
-        }
+        data: { id: file.id }
       })
-    }));
+    });
 
-    return new Response(JSON.stringify({ 
-      success: true,
+    return new Response(JSON.stringify({
       message: 'Media deleted successfully',
       deletedFile: {
         id: file.id,
@@ -330,6 +376,19 @@ export async function cleanupOrphanedFiles(env: Env): Promise<Response> {
     
     await Promise.all(deletePromises);
     
+    // Broadcast cleanup via WebSocket
+    const doId = env.WEBSOCKET_HANDLER.idFromName('default');
+    const handler = env.WEBSOCKET_HANDLER.get(doId);
+    await handler.fetch('https://internal/broadcast', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 'MEDIA_CLEANUP',
+        data: {
+          deletedKeys: orphanedFiles.map(f => f.key)
+        }
+      })
+    });
+
     return new Response(JSON.stringify({
       success: true,
       message: `Cleaned up ${orphanedFiles.length} orphaned files`,
@@ -346,85 +405,152 @@ export async function cleanupOrphanedFiles(env: Env): Promise<Response> {
 }
 
 export async function updateMedia(request: Request, env: Env, fileId: string): Promise<Response> {
+    try {
+        const data = await request.json() as UpdateMediaRequest;
+        console.log('📝 Update request data:', data);
+        
+        // Build dynamic update query based on provided fields
+        const updates: string[] = [];
+        const values: any[] = [];
+        
+        if (data.filename !== undefined) {
+            updates.push('filename = ?');
+            values.push(data.filename);
+        }
+        if (data.published !== undefined) {
+            updates.push('published = ?');
+            values.push(Number(data.published));
+        }
+        if (data.show_in_blog !== undefined) {
+            updates.push('show_in_blog = ?');
+            values.push(Number(data.show_in_blog));
+        }
+        if (data.show_in_pics !== undefined) {
+            updates.push('show_in_pics = ?');
+            values.push(Number(data.show_in_pics));
+        }
+        if (data.text_description !== undefined) {
+            updates.push('text_description = ?');
+            values.push(data.text_description);
+        }
+        if (data.text_description_visible !== undefined) {
+            updates.push('text_description_visible = ?');
+            values.push(Number(data.text_description_visible));
+        }
+
+        console.log('📝 Updates:', updates);
+        console.log('📝 Values:', values);
+
+        // Check if we have any updates
+        if (updates.length === 0) {
+            return new Response(JSON.stringify({ 
+                error: 'No fields to update',
+                receivedData: data
+            }), { 
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // Add the ID to values array
+        values.push(Number(fileId));
+
+        const query = `
+            UPDATE media 
+            SET ${updates.join(', ')}
+            WHERE id = ?
+            RETURNING *
+        `;
+        
+        console.log('📝 Executing SQL:', query);
+        console.log('📝 With values:', values);
+        
+        const stmt = env.DB.prepare(query);
+        const result = await stmt.bind(...values).first();
+
+        if (!result) {
+            return new Response('Media not found', { status: 404 });
+        }
+
+        // Format response data
+        const responseData = {
+            id: result.id,
+            name: result.filename,
+            url: `http://localhost:8787/api/media/${result.r2_key}`,
+            type: result.mime_type,
+            size: result.size,
+            uploadedAt: result.created_at,
+            published: Boolean(result.published),
+            show_in_blog: Boolean(result.show_in_blog),
+            show_in_pics: Boolean(result.show_in_pics),
+            text_description: result.text_description,
+            text_description_visible: Boolean(result.text_description_visible),
+            hash: result.hash
+        };
+
+        // Broadcast update via WebSocket
+        const id = env.WEBSOCKET_HANDLER.idFromName('default');
+        const handler = env.WEBSOCKET_HANDLER.get(id);
+        await handler.fetch(new Request('http://internal/broadcast', {
+            method: 'POST',
+            body: JSON.stringify({
+                type: 'MEDIA_UPDATE',
+                data: responseData
+            })
+        }));
+
+        return new Response(JSON.stringify(responseData), {
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+    } catch (error) {
+        console.error('Update error:', error);
+        return new Response(JSON.stringify({ 
+            error: 'Failed to update media',
+            details: error instanceof Error ? error.message : 'Unknown error'
+        }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+}
+
+export async function updateMediaMetadata(request: Request, env: Env, mediaId: string): Promise<Response> {
   try {
-    const data = await request.json() as UpdateMediaRequest;
+    const data = await request.json() as MediaMetadata;
     
-    // Build dynamic update query based on provided fields
-    const updates: string[] = [];
-    const values: any[] = [];
-    
-    if (data.filename !== undefined) {
-      updates.push('filename = ?');
-      values.push(data.filename);
-    }
-    if (data.published !== undefined) {
-      updates.push('published = ?');
-      values.push(Number(data.published));
-    }
-    if (data.show_in_blog !== undefined) {
-      updates.push('show_in_blog = ?');
-      values.push(Number(data.show_in_blog));
-    }
-    if (data.show_in_pics !== undefined) {
-      updates.push('show_in_pics = ?');
-      values.push(Number(data.show_in_pics));
-    }
+    await env.DB.prepare(`
+      INSERT OR REPLACE INTO media_metadata (
+        media_id, description, show_description
+      ) VALUES (?, ?, ?)
+    `).bind(
+      mediaId,
+      data.description,
+      data.show_description
+    ).run();
 
-    // Add the ID to values array
-    values.push(Number(fileId));
-
-    // Execute update
-    const stmt = env.DB.prepare(`
-      UPDATE media 
-      SET ${updates.join(', ')}
-      WHERE id = ?
-      RETURNING *
-    `);
-    
-    const result = await stmt.bind(...values).first();
-
-    if (!result) {
-      return new Response('Media not found', { status: 404 });
-    }
-
-    // Format response data
-    const responseData = {
-      id: result.id,
-      name: result.filename,
-      url: `http://localhost:8787/api/media/${result.r2_key}`,
-      type: result.mime_type,
-      size: result.size,
-      uploadedAt: result.created_at,
-      published: Boolean(result.published),
-      show_in_blog: Boolean(result.show_in_blog),
-      show_in_pics: Boolean(result.show_in_pics),
-      hash: result.hash
-    };
-
-    // Broadcast update via WebSocket
-    const id = env.WEBSOCKET_HANDLER.idFromName('default');
-    const handler = env.WEBSOCKET_HANDLER.get(id);
-    await handler.fetch(new Request('http://internal/broadcast', {
+    // Broadcast metadata update
+    const doId = env.WEBSOCKET_HANDLER.idFromName('default');
+    const handler = env.WEBSOCKET_HANDLER.get(doId);
+    await handler.fetch('https://internal/broadcast', {
       method: 'POST',
       body: JSON.stringify({
-        type: 'MEDIA_UPDATE',
-        data: responseData
+        type: 'MEDIA_METADATA_UPDATE',
+        data: {
+          id: mediaId,
+          ...data
+        }
       })
-    }));
-
-    return new Response(JSON.stringify(responseData), {
-      headers: { 'Content-Type': 'application/json' }
     });
 
+    return new Response(JSON.stringify({ success: true }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
   } catch (error) {
-    console.error('Update error:', error);
     return new Response(JSON.stringify({ 
-      error: 'Failed to update media',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+      error: 'Failed to update media metadata',
+      details: error instanceof Error ? error.message : String(error)
+    }), { status: 500 });
   }
 }
 

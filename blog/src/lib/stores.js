@@ -1,131 +1,135 @@
-// dynamic site config that updates upon web socket events
 import { writable } from 'svelte/store';
-import { browser } from '$app/environment';
-import { wsClient } from './websocket';
-import { invalidate } from '$app/navigation';
+import { WebSocketClient } from './websocket';
 
-console.log('🔄 [stores] Initializing stores...');
+// Create base stores
+export const siteConfig = writable({});
+export const posts = writable([]);
+export const media = writable([]);
+export const animations = writable([]);
 
-function formatNavLinks(config) {
-    return {
-        ...config,
-        nav_links: Object.fromEntries(
-            Object.entries(config.nav_links || {}).map(([key, value]) => [
-                key,
-                // Convert boolean to 1/0 when receiving from API
-                typeof value === 'boolean' ? (value ? 1 : 0) : value
-            ])
-        )
-    };
-}
-
-// Create a writable store with initial empty values
-export const siteConfig = writable({
-  title: '',
-  description: '',
-  navigation: [
-    { name: 'projects', path: '/projects' },
-    { name: 'blog', path: '/blog' },
-    { name: 'pics', path: '/pics' },
-    { name: 'about', path: '/about' },
-    { name: 'contact', path: '/contact' }
-  ],      
-  nav_links: {
-    projects: 1,
-    blog: 1,
-    pics: 1,
-    about: 1,
-    contact: 1
-  }
+// Add a subscribe to log changes
+siteConfig.subscribe(value => {
+    // console.log('💾 Store value updated:', value);
 });
 
-// Posts store
-export const posts = writable([]);
+// Store manager to handle initialization and updates
+class StoreManager {
+    constructor() {
+        this.initialized = false;
+        this.ws = null;
+    }
 
-// Only run on the client side
-if (browser) {
-    // Fetch site config
-    console.log('🔄 Fetching initial site config...');
-    fetch('http://localhost:8787/api/site/config')
-        .then(res => res.json())
-        .then(data => {
-            const formattedConfig = formatNavLinks(data);
-            console.log('📝 Loaded initial site config:', formattedConfig);
-            siteConfig.set(formattedConfig);
-        })
-        .catch(err => console.error('❌ Failed to load site config:', err));
-
-    // Fetch posts
-    console.log('🔄 Fetching posts...');
-    fetch('http://localhost:8787/api/posts')
-        .then(res => res.json())
-        .then(data => {
-            const formattedPosts = (data.posts || [])
-                .filter(post => post.published === 1)
-                .map(formatPost);
-            posts.set(formattedPosts);
-        })
-        .catch(err => console.error('Failed to load posts:', err));
-
-    console.log('🔌 [stores] Setting up WebSocket subscriptions...');
-    
-    // Subscribe to WebSocket updates
-    wsClient.subscribe('POSTS_UPDATE', async (data) => {
-        console.log('🔄 Received POSTS_UPDATE:', data);
-        if (!data.posts) return;
-
-        const formattedPosts = data.posts
-            .filter(post => post.published === 1)
-            .map(formatPost);
-
-        console.log('📝 Updating posts store with:', formattedPosts);
-        posts.set(formattedPosts);
-        await invalidate('app:posts');
-    });
-
-    wsClient.subscribe('POST_UPDATE', async (data) => {
-        console.log('🔄 Single post update from WebSocket:', data);
-        await invalidate('app:posts');
-    });
-
-    wsClient.subscribe('POST_CREATE', async (data) => {
-        console.log('🔄 New post created from WebSocket:', data);
-        await invalidate('app:posts');
-    });
-
-    wsClient.subscribe('POST_DELETE', async (data) => {
-        console.log('🔄 Post deleted from WebSocket:', data);
-        await invalidate('app:posts');
-    });
-
-    // Site config subscription
-    wsClient.subscribe('SITE_CONFIG_UPDATE', async (data) => {
-        console.log('🔄 [stores] SITE_CONFIG_UPDATE received:', data);
-        if (!data?.config) {
-            console.warn('⚠️ [stores] Invalid config data:', data);
+    init(initialData) {
+        if (this.initialized) {
+            console.log('🔄 Store already initialized, skipping');
             return;
         }
         
-        const formattedConfig = formatNavLinks(data.config);
-        console.log('📝 [stores] Updating site config with:', formattedConfig);
-        siteConfig.set(formattedConfig);
-        await invalidate('app:config');
-    });
-    console.log('✅ [stores] Subscriptions set up');
+        // console.log('🔄 Initializing stores with data:', initialData);
+
+        if (initialData.siteConfig) {
+            // console.log('⚙️ Setting initial site config:', initialData.siteConfig);
+            siteConfig.set(initialData.siteConfig);
+        } else {
+            console.warn('⚠️ No site config provided in initial data');
+        }
+
+        if (initialData.media) {
+            // console.log('⚙️ Setting site config:', initialData.media);
+            media.set(initialData.media);
+        } else {
+            console.warn('⚠️ No media provided in initial data');
+        }
+
+        if (initialData.posts?.posts) {
+            // console.log('📝 Setting posts:', initialData.posts.posts);
+            posts.set(initialData.posts.posts);
+        }
+
+        if (initialData.animations) {
+            // console.log('🎬 Setting animations:', initialData.animations);
+            animations.set(initialData.animations);
+        }
+
+        this.initWebSocket();
+        this.initialized = true;
+        // console.log('✅ Store initialization complete');
+    }
+
+    initWebSocket() {
+        console.log('🔌 Initializing WebSocket');
+        this.ws = new WebSocketClient();
+        
+        this.ws.subscribe('SITE_CONFIG_UPDATE', message => {
+            // Parse the message if it's a string
+            const parsedMessage = typeof message === 'string' ? JSON.parse(message) : message;
+            console.log('📡 Received config update:', parsedMessage);
+            
+            // Check for the nested data structure
+            if (parsedMessage?.data) {
+                const newData = parsedMessage.data;
+                console.log('📡 Setting new config with transformed about sections');
+                siteConfig.set({
+                    ...newData,
+                    about_sections: newData.about_sections?.map(s => ({
+                        title: s.title,
+                        visible: s.visible,
+                        content: { text: s.content }
+                    })) || []
+                });
+            } else if (parsedMessage) {
+                // Fallback for direct config updates
+                const newData = parsedMessage;
+                console.log('📡 Setting direct config with transformed about sections');
+                siteConfig.set({
+                    ...newData,
+                    about_sections: newData.about_sections?.map(s => ({
+                        title: s.title,
+                        visible: s.visible,
+                        content: { text: s.content }
+                    })) || []
+                });
+            }
+        });
+
+        this.ws.subscribe('POSTS_UPDATE', ({ posts: newPosts }) => {
+            console.log('📨 Received posts update:', newPosts);
+            posts.set(newPosts);
+        });
+
+        // MEDIA CRUD
+        this.ws.subscribe('MEDIA_UPDATE', updatedItem => {
+            console.log('📡 Received MEDIA_UPDATE:', updatedItem);
+            media.update(files => 
+                files.map(f => f.id === updatedItem.id ? updatedItem : f)
+            );
+        });
+        this.ws.subscribe('MEDIA_DELETE', deleted => {
+            media.update(files => 
+                files.filter(f => f.id !== deleted.id)
+            );
+        });
+        this.ws.subscribe('MEDIA_CREATE', newItem => {
+            console.log('📡 Received MEDIA_CREATE:', newItem);
+            media.update(files => {
+                const newFiles = [...files, newItem];
+                // console.log('📡 Updated media store with new item:', newFiles);
+                return newFiles;
+            });
+        });
+  
+
+        this.ws.subscribe('ANIMATIONS_UPDATE', ({ animations: newAnimations }) => {
+            animations.set(newAnimations);
+        });
+
+        // Add a debug subscription to the media store
+        media.subscribe(value => {
+            // console.log('💾 Media store updated:', value);
+        });
+    }
 }
 
-function formatPost(post) {
-    const metadata = typeof post.metadata === 'string' 
-        ? JSON.parse(post.metadata) 
-        : post.metadata;
-        
-    return {
-        slug: post.slug,
-        name: post.title,
-        date: post.created_at,
-        description: metadata?.description || 
-                   post.content.replace(/<[^>]*>/g, '').substring(0, 150) + '...',
-        icon: post.icon || 'ph:pencil-simple',
-        published: post.published === 1
-    };
-}
+export const storeManager = new StoreManager();
+
+

@@ -11,12 +11,18 @@ export class WebSocketHandler implements DurableObject {
 
   async fetch(request: Request) {
     const url = new URL(request.url);
+    console.log('🎯 WebSocketHandler fetch:', { 
+      pathname: url.pathname,
+      method: request.method 
+    });
 
     if (url.pathname === '/ws') {
       if (request.headers.get('Upgrade') !== 'websocket') {
+        console.log('❌ Not a WebSocket upgrade request');
         return new Response('Expected Upgrade: websocket', { status: 426 });
       }
 
+      console.log('✨ Creating new WebSocket connection');
       const { 0: client, 1: server } = new WebSocketPair();
       await this.handleSession(server);
       
@@ -34,31 +40,41 @@ export class WebSocketHandler implements DurableObject {
       const message = await request.json();
       console.log('📢 [WebSocketHandler] Received broadcast request:', {
         pathname: url.pathname,
-        message
+        message: JSON.stringify(message, null, 2)
       });
       this.broadcast(message);
       return new Response('OK');
     }
 
+    console.log('❌ Unknown path:', url.pathname);
     return new Response('Not found', { status: 404 });
   }
 
   private async handleSession(ws: WebSocket) {
-    console.log('🔌 New WebSocket connection');
+    console.log('🔌 New WebSocket connection established');
     this.sessions.add(ws);
     ws.accept();
     
+    // Send initial connection message
+    try {
+      ws.send(JSON.stringify({ type: 'CONNECTED' }));
+      console.log('✅ Sent connection confirmation');
+    } catch (err) {
+      console.error('❌ Failed to send connection confirmation:', err);
+    }
+    
     ws.addEventListener('message', async (msg) => {
-      if (msg.data === 'ping') return; // Ignore ping messages
+      // console.log('📨 Received WebSocket message:', msg.data);
+      if (msg.data === 'ping') return;
       
       try {
         if (typeof msg.data === 'string') {
           const data = JSON.parse(msg.data);
-          // Broadcast to all connected clients
+          console.log('📨 Parsed message data:', data);
           this.broadcast(data);
         }
       } catch (err) {
-        console.error('Failed to parse message:', err);
+        console.error('❌ Failed to parse message:', err);
       }
     });
     
@@ -75,22 +91,32 @@ export class WebSocketHandler implements DurableObject {
 
   private broadcast(data: any) {
     const message = JSON.stringify(data);
-    console.log(`📢 [WebSocketHandler] Broadcasting message:`, data);
-    console.log(`📢 [WebSocketHandler] Message type:`, data.type);
-    console.log(`📢 [WebSocketHandler] Active sessions:`, this.sessions.size);
+    console.log(`📢 [WebSocketHandler] Broadcasting message:`, {
+      type: data.type,
+      messageLength: message.length,
+      activeSessions: this.sessions.size,
+      data: JSON.stringify(data, null, 2)
+    });
+    
     let successCount = 0;
+    let failCount = 0;
     
     this.sessions.forEach(ws => {
         try {
             ws.send(message);
             successCount++;
-            console.log(`✅ [WebSocketHandler] Sent to session successfully`);
+            // console.log(`✅ Successfully sent to session`);
         } catch (err) {
-            console.error('❌ [WebSocketHandler] Failed to send to session:', err);
+            failCount++;
+            // console.error('❌ Failed to send to session:', err);
             this.sessions.delete(ws);
         }
     });
     
-    console.log(`✅ [WebSocketHandler] Broadcast complete. Successful: ${successCount}/${this.sessions.size}`);
+    console.log(`📊 Broadcast results:`, {
+      successful: successCount,
+      failed: failCount,
+      totalSessions: this.sessions.size
+    });
   }
 } 

@@ -12,7 +12,7 @@ if (browser) {
     });
 
     wsClient.subscribe('SITE_CONFIG_UPDATE', async (data) => {
-        console.log('⚙️ Admin: Received site config update:', data);
+        // console.log('⚙️ Admin: Received site config update:', data);
         await invalidate('app:config');
     });
 }

@@ -7,7 +7,7 @@ console.log('Using JWT_SECRET:', process.env.JWT_SECRET);
 const token = jwt.sign(
   { username: process.env.ADMIN_USERNAME },
   process.env.JWT_SECRET,
-  { expiresIn: '1d' }
+  { expiresIn: '30d' }
 );
 
 console.log('Test token:', token);

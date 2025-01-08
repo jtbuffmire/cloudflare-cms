@@ -2,6 +2,7 @@
     import MediaSelector from '$components/MediaSelector.svelte';
     import IconSelector from '$components/IconSelector.svelte';
     import { marked } from 'marked';
+    import { API_URL } from '$lib/config';
     
     let title = '';
     let slug = '';
@@ -177,34 +178,43 @@
         showMediaSelector = false;
     }
 
-    async function generatePreview() {
-        showPreview = true;
-        try {
-            const response = await fetch('http://localhost:8787/api/preview', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                body: JSON.stringify({
-                    markdown: markdown_content
-                })
-            });
-            
-            if (!response.ok) throw new Error('Preview generation failed');
-            const result = await response.json();
-            previewHtml = result.html;
-        } catch (error) {
-            // Fallback to client-side rendering if API fails
-            previewHtml = marked(markdown_content);
+    async function togglePreview() {
+        // If switching to preview mode and no content, show message and prevent switch
+        if (!showPreview && !markdown_content.trim()) {
+            // Optional: Show a toast or message
+            console.log('Cannot preview empty content');
+            return;
+        }
+
+        showPreview = !showPreview;
+        if (showPreview) {
+            try {
+                const response = await fetch(`${API_URL}/api/preview`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({
+                        markdown: markdown_content
+                    })
+                });
+                
+                if (!response.ok) throw new Error('Preview generation failed');
+                const result = await response.json();
+                previewHtml = result.html;
+            } catch (error) {
+                // Fallback to client-side rendering if API fails
+                previewHtml = marked(markdown_content);
+            }
         }
     }
 </script>
   
-<div class="container mx-auto p-4 space-y-4">
+<div class="container mx-auto p-4">
     <h2 class="h2">New Post</h2>
-  
-    <form on:submit|preventDefault={handleSubmit} class="space-y-4">
+    
+    <form on:submit|preventDefault={handleSubmit} class="h-[calc(100vh-8rem)] overflow-y-auto pr-4">
         {#if error}
             <div class="alert variant-filled-error">{error}</div>
         {/if}
@@ -212,64 +222,63 @@
         {#if uploadError}
             <div class="alert variant-filled-error">{uploadError}</div>
         {/if}
-  
-        <label class="label">
-            <span>Title</span>
-            <input
-                type="text"
-                bind:value={title}
-                class="input"
-                required
-            />
-        </label>
 
+        <div class="grid grid-cols-2 gap-x-8">
+            <div class="mt-6 pl-6">
+                <span class="block mb-2">Title</span>
+                <input
+                    type="text"
+                    bind:value={title}
+                    class="input w-full h-12 px-4"
+                    required
+                />
+            </div>
 
-    <IconSelector 
-      value={metadata.icon} 
-      onChange={handleIconChange}
-    />  
+            <div class="mt-6 pl-6">
+                <span class="block mb-2">Description</span>
+                <input
+                    type="text"
+                    bind:value={metadata.description}
+                    class="input w-full h-12 px-4"
+                />
+            </div>
 
-        <label class="label">
-            <span>Slug</span>
-            <input
-                type="text"
-                bind:value={slug}
-                class="input"
-                pattern="[a-z0-9\-]+"
-                title="Lowercase letters, numbers, and hyphens only"
-                required
-            />
-            <span class="text-sm opacity-70">URL-friendly version of the title</span>
-        </label>
+            <div class="mt-6 pl-6">
+                <span class="block mb-2">Slug</span>
+                <input
+                    type="text"
+                    bind:value={slug}
+                    class="input w-full h-12 px-4"
+                    pattern="[a-z0-9\-]+"
+                    title="Lowercase letters, numbers, and hyphens only"
+                    required
+                />
+            </div>
 
-        <label class="label">
-            <span>Description</span>
-            <input
-                type="text"
-                bind:value={metadata.description}
-                class="input"
-            />
-        </label>
+            <div class="mt-6 pl-6">
+                <span class="block mb-2">Tags (comma-separated)</span>
+                <input
+                    type="text"
+                    value={metadata.tags.join(', ')}
+                    class="input w-full h-12 px-4"
+                    on:input={(e) => {
+                        metadata.tags = e.currentTarget.value
+                            .split(',')
+                            .map(tag => tag.trim())
+                            .filter(tag => tag);
+                    }}
+                />
+            </div>
+        </div>
 
-        <label class="label">
-            <span>Tags (comma-separated)</span>
-            <input
-                type="text"
-                value={metadata.tags.join(', ')}
-                on:input={(e) => {
-                    metadata.tags = e.currentTarget.value
-                        .split(',')
-                        .map(tag => tag.trim())
-                        .filter(tag => tag);
-                }}
-                class="input"
-            />
-        </label>
-
-        <div class="space-y-2">
-            <div class="flex justify-between items-center">
-                <label class="label">Content</label>
-                <div class="space-x-2">
+        <div class="mt-6 pl-6">
+            <div class="flex flex-col gap-2">
+                <span class="block mb-2">Optional Media</span>
+                <div class="flex items-center space-x-2 ml-2">
+                    <IconSelector 
+                        value={metadata.icon} 
+                        onChange={handleIconChange}
+                    />
                     <button 
                         type="button"
                         class="btn variant-ghost"
@@ -278,15 +287,10 @@
                         Insert Image
                     </button>
                     <button 
-                        type="button"
+                        type="button" 
                         class="btn variant-ghost"
-                        on:click={() => {
-                            if (showPreview) {
-                                showPreview = false;
-                            } else {
-                                generatePreview();
-                            }
-                        }}
+                        on:click={togglePreview}
+                        disabled={!markdown_content.trim() && !showPreview}
                     >
                         {showPreview ? 'Edit' : 'Preview'}
                     </button>
@@ -297,22 +301,25 @@
                 <MediaSelector onSelect={handleImageSelect} />
             {/if}
             
-            {#if showPreview}
-                <div class="prose max-w-none p-4 card">
-                    {@html previewHtml}
-                </div>
-            {:else}
-                <textarea
-                    name="markdown_content"
-                    bind:value={markdown_content}
-                    class="textarea font-mono"
-                    rows="15"
-                    required
-                ></textarea>
-            {/if}
+            <div class="space-y-1">
+                <span class="block mt-6">Blog Post Content</span>
+                {#if showPreview}
+                    <div class="prose max-w-none p-4 bg-surface-100-800-token rounded-container-token">
+                        {@html previewHtml}
+                    </div>
+                {:else}
+                    <textarea
+                        name="markdown_content"
+                        bind:value={markdown_content}
+                        class="textarea font-mono px-4 py-3"
+                        rows="15"
+                        required
+                    ></textarea>
+                {/if}
+            </div>
         </div>
-  
-        <div class="flex justify-end space-x-2">
+
+        <div class="flex justify-end space-x-2 mt-4">
             <a href="/admin/posts" class="btn variant-ghost">Cancel</a>
             <button type="submit" class="btn variant-filled-primary" disabled={loading}>
                 {loading ? 'Creating...' : 'Create Post'}

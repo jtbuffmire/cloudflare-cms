@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
-  // console.log('API_URL:', API_URL); // Debug log
 
+  // console.log('API_URL:', API_URL); // Debug log
   
   let files: Array<{
     id: string;
@@ -15,6 +15,8 @@
     hash?: string;
     show_in_blog: boolean;
     show_in_pics: boolean;
+    description?: string;
+    show_description?: boolean;
   }> = [];
 
   let loading = true;
@@ -29,7 +31,6 @@
     try {
       loading = true;
       const token = localStorage.getItem('token');
-      console.log('🔄 Refreshing media list...'); 
       
       const response = await fetch(`${API_URL}/api/media`, {
         headers: {
@@ -232,7 +233,7 @@
       
       // Update local state
       files = files.map(file => 
-        file.id === fileId 
+        file.id === id 
           ? { ...file, name: newName }
           : file
       );
@@ -271,6 +272,85 @@
     }
   }
 
+  async function updateMediaMetadata(fileId, metadata) {
+    console.log('📝 Update request data:', metadata);
+    const token = localStorage.getItem('token');
+    try {
+        const response = await fetch(`${API_URL}/api/media/${fileId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                text_description: metadata.description,
+                text_description_visible: metadata.show_description
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            console.error('Update failed:', error);
+            throw new Error('Failed to update media metadata');
+        }
+        
+        const updatedData = await response.json();
+        
+        // Update local state using the server's response data
+        files = files.map(file => 
+            file.id === fileId 
+                ? { 
+                    ...file,
+                    text_description: updatedData.text_description,
+                    text_description_visible: updatedData.text_description_visible
+                }
+                : file
+        );
+        
+    } catch (error) {
+        console.error('Error updating media metadata:', error);
+        alert('Failed to save caption');
+    }
+  }
+
+  async function updateMedia(id, updates) {
+    console.log('Updating media:', id, updates);
+    try {
+        const response = await fetch(`${API_URL}/api/media/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify(updates)
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            console.error('Update failed:', error);
+            throw new Error(error.error || 'Failed to update media');
+        }
+        
+    } catch (error) {
+        console.error('Failed to update media:', error);
+        throw error;
+    }
+  }
+
+  function handleDescriptionToggle(media) {
+    console.log('Toggle description visibility for:', media.id);
+    updateMedia(media.id, {
+        text_description_visible: !media.text_description_visible
+    });
+  }
+
+  function handleDescriptionChange(media, description) {
+    updateMedia(media.id, {
+      ...media,
+      text_description: description
+    });
+  }
+
 </script>
 
 <div class="container mx-auto p-4 space-y-4">
@@ -306,43 +386,30 @@
               <span class="text-4xl">📁</span>
             </div>
           {/if}
-          {#if editingId === file.id}
-            <!-- Edit mode -->
-            <form 
-              class="flex gap-2 mt-2"
-              on:submit|preventDefault={() => handleNameUpdate(file.id, editingName)}
+          
+          <!-- Publish and Delete buttons right below image -->
+          <div class="flex justify-between mb-2">
+            <button 
+              class="btn btn-sm {file.published ? 'variant-filled-primary' : 'variant-ghost-primary'}"
+              on:click={() => togglePublish(file.id, file.published)}
             >
-              <input 
-                type="text"
-                class="input"
-                bind:value={editingName}
-                autofocus
-              />
-              <button type="submit" class="btn btn-sm variant-filled-primary">Save</button>
-              <button 
-                type="button" 
-                class="btn btn-sm variant-ghost"
-                on:click={() => editingId = null}
-              >
-                Cancel
-              </button>
-            </form>
-          {:else}
-            <!-- Display mode -->
-            <div class="flex justify-between items-center">
-              <p class="truncate">{file.name}</p>
-              <button 
-                class="btn btn-sm variant-ghost"
-                on:click={() => {
-                  editingId = file.id;
-                  editingName = file.name;
-                }}
-              >
-                Edit
-              </button>
-            </div>
-          {/if}
+              {file.published ? 'Published' : 'Publish'}
+            </button>
+            <button 
+              class="btn btn-sm variant-ghost-error" 
+              on:click={() => {
+                const key = file.url.split('/').pop();
+                if (key) handleDelete(key);
+              }}
+            >
+              Delete
+            </button>
+          </div>
+
+          <p class="truncate">{file.name}</p>
           <p class="text-sm opacity-70">{Math.round(file.size / 1024)}KB</p>
+          
+          <!-- Rest of the card content remains the same -->
           <div class="flex flex-col gap-2 mt-2">
             <label class="flex items-center space-x-2">
                 <input
@@ -365,21 +432,25 @@
             </label>
         </div>
         
-        <div class="flex justify-between mt-2">
+        <div class="mt-2">
+            <label class="block mb-1">Description</label>
+            <textarea
+                class="textarea w-full p-3"
+                rows="2"
+                placeholder="Add a description..."
+                bind:value={file.text_description}
+            ></textarea>
+        </div>
+        
+        <div class="flex justify-end mt-2">
           <button 
-            class="btn btn-sm {file.published ? 'variant-filled-primary' : 'variant-ghost-primary'}"
-            on:click={() => togglePublish(file.id, file.published)}
+            class="btn btn-sm {file.text_description && file.text_description_visible ? 'variant-filled-primary' : 'variant-ghost-primary'}"
+            on:click={() => updateMediaMetadata(file.id, {
+                description: file.text_description || '',
+                show_description: !file.text_description_visible
+            })}
           >
-            {file.published ? 'Published' : 'Publish'}
-          </button>
-          <button 
-            class="btn btn-sm variant-ghost-error" 
-            on:click={() => {
-              const key = file.url.split('/').pop();
-              if (key) handleDelete(key);
-            }}
-          >
-            Delete
+            {file.text_description && file.text_description_visible ? 'Caption Shown' : 'Show Caption'}
           </button>
         </div>
         </div>

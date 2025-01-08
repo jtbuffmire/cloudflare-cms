@@ -15,15 +15,13 @@ export class WebSocketClient {
     this.ws = new WebSocket(this.url);
 
     this.ws.addEventListener('open', () => {
-      console.log('✅ WebSocket connected');
+        console.log('✅ WebSocket connected');
       this.reconnectTimeout = 1000;
     });
 
     this.ws.addEventListener('message', (event) => {
       try {
-        const message = JSON.parse(event.data);
-        console.log('📨 WebSocket message received:', message);
-        
+        const message = JSON.parse(event.data);        
         const handlers = this.subscribers.get(message.type) || [];
         handlers.forEach(handler => handler(message.data));
       } catch (err) {

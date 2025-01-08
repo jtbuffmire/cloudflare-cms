@@ -456,6 +456,11 @@ Preview
 Websockets
 
 
+automatic Logout upon 401 error in the admin panel. 
+back button in admin panel posts page. 
+Center text within blog post rowes on the table in the posts admin panel. 
+A full markdown text post showing what's possible in the admin panel. 
+Markdown editor component in the admin panel. 
 
 
 What next?
@@ -513,5 +518,54 @@ Reusable admin components
 Single store update
 One-time testing of the full flow
 Would you like to proceed with the database/API layer first?
+encrypt the websocket connections
+how is he doing this: https://us.umami.is/share/HwZnyuHQ5Rqz3NWf/refact0r.dev
+
+for colors, if we could have a color selector and have the user pick their favorite colors, this coulld be very cool. 
 
 
+cloudflare-cms/
+├── README.md              # Main project overview
+├── docs/                  # Detailed documentation directory
+│   ├── api.md            # API specifications
+│   ├── websocket.md      # WebSocket protocol documentation
+│   └── data-models.md    # Data structures and schemas
+├── worker/               
+│   └── README.md         # Worker-specific setup and development
+├── admin/               
+│   └── README.md         # Admin panel setup and development
+└── blog/                 
+    └── README.md         # Blog frontend setup and development
+
+
+# Delete the local database
+rm .wrangler/state/v3/d1/*/db.sqlite
+
+# Then run your migrations again
+npx wrangler d1 execute cms-db --local --file=./migrations/sql/0000_initial.sql && \
+npx wrangler d1 execute cms-db --local --file=./migrations/sql/0001_meals_starter.sql
+
+
+   
+left to do 
+
+create a slider to increase the size of the home screen animation in the admin panel. 
+Clean up console logs:
+Remove debug logging from stores.js
+Clean up worker logs (keep error logging)
+Review all components for stray console.logs
+Production Configuration:
+Update any hardcoded URLs (like localhost:8787) to use environment variables
+Set up production environment variables in Cloudflare
+Update WebSocket connections to use production URLs
+Ensure CORS settings are properly configured
+Security:
+Review API endpoints for proper authentication
+Ensure sensitive data isn't being logged
+Verify all admin routes are properly protected
+Cloudflare Deployment:
+Set up your domain in Cloudflare
+Configure R2 bucket for production
+Set up D1 database for production
+Deploy the worker to production
+Deploy the frontend to Cloudflare Pages

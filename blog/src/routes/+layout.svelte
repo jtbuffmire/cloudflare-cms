@@ -1,40 +1,42 @@
 <script>
+	import { storeManager } from '$lib/stores';
+	import { onMount } from 'svelte';
 	import '../app.scss';
 	import '$lib/assets/fonts/space-mono.css';
 	import '$lib/assets/fonts/space-grotesk.css';
 	import 'iconify-icon';
 	import { page } from '$app/stores';
-	import { onDestroy } from 'svelte';
 	import Logo from '$lib/components/Logo.svelte';
 	import PageHead from '$lib/components/PageHead.svelte';
 	import { fly } from 'svelte/transition';
-	import { onMount } from 'svelte';
-	import { wsClient } from '$lib/websocket';
-	import { siteConfig } from '$lib/stores';
-
+	import { siteConfig, posts } from '$lib/stores';
 	export let data;
 
-	$: {
-		console.log('🔍 siteConfig store changed:', $siteConfig);
-		console.log('🔍 Computed pages:', pages);
-	}
+	// One-time initialization when component mounts
+	onMount(() => {
+		storeManager.init(data);
+	});
 
-	$: pages = Object.entries($siteConfig.nav_links || {})
-		.filter(([name, enabled]) => {
-			console.log(`🔍 Checking nav link ${name}:`, enabled);
-			return enabled === 1;
-		})
-		.map(([name]) => ({
-			name,
-			path: `/${name}`
-		}));
+	// Static array for transitions
+	const pages = [
+	//	{ name: 'projects', path: '/projects' },
+		{ name: 'blog', path: '/blog' },
+		{ name: 'pics', path: '/pics' },
+		{ name: 'about', path: '/about' },
+		{ name: 'contact', path: '/contact' }
+	];
+
+	// Simplified navigation check
+	$: visiblePages = pages.filter(page => 
+		$siteConfig?.nav_links?.[page.name] === 1
+	);
 
 	let prevTwoPages = ['', ''];
 	$: {
 		prevTwoPages = [prevTwoPages[1], data.pathname];
 	}
 
-	function xy(path /* : string */, isIn = true) {
+	function xy(path, isIn = true) {
 		if (path === prevTwoPages[0]) {
 			return { x: 0, y: 0 };
 		}
@@ -62,33 +64,28 @@
 		return { x: `${isIn ? '' : '-'}${xDiff * 20}vh`, y: `${isIn ? '' : '-'}${yDiff * 20}vh` };
 	}
 
-	onDestroy(() => {
-		if (data.wsClient) {
-			data.wsClient.close();
-		}
-	});
-
 </script>
-
 <PageHead
-	title={$page.error ? $page.status : $page.data.meta.title}
-	description={$page.error ? $page.error.message : $page.data.meta.description}
-	type={$page.data.meta.type}
-	image={$page.data.meta.image}
+	title={$page.error ? $page.status : $siteConfig?.title ?? 'Loading...'}
+	description={$page.error ? $page.error.message : $siteConfig?.description ?? 'Loading...'}
+	type={$page.data?.meta?.type ?? 'website'}
+	image={$page.data?.meta?.image ?? ''}
 />
 
 <header class:home={$page.url.pathname === '/'}>
-	<div class="row">
-		<a class="pfp" href="/" aria-label="homepage"><Logo --width="2rem" --height="2rem" /></a>
-		<a href="/"><h1>{$siteConfig.title || 'refact0r'}</h1></a>
-	</div>
-	<nav>
-		{#each pages as { name, path }}
-			<a class="nav" href={path}>
-				<span class="arrow">-></span><span class="slash">/</span>{name}
-			</a>
-		{/each}
-	</nav>
+    <div class="row">
+        <a class="pfp" href="/" aria-label="homepage">
+            <Logo header={true} --width="2rem" --height="2rem" />
+        </a>
+        <a href="/"><h1>{$siteConfig?.title || 'default title'}</h1></a>
+    </div>
+    <nav>
+        {#each visiblePages as { name, path }}
+            <a class="nav" href={path}>
+                <span class="arrow">-></span><span class="slash">/</span>{name}
+            </a>
+        {/each}
+    </nav>
 </header>
 <div class="container">
 	{#key data.pathname}

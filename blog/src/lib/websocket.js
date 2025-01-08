@@ -4,93 +4,44 @@ export class WebSocketClient {
   constructor(url = 'ws://localhost:8787/ws') {
     this.url = url;
     this.ws = null;
-    this.reconnectTimeout = 1000;
-    this.maxReconnectAttempts = 5;
-    this.reconnectAttempts = 0;
     /** @type {Map<string, Array<function(any):void>>} */
     this.subscribers = new Map();
     
-    if (browser) {
-      console.log('🔄 Initializing WebSocket client for:', url);
-      this.connect();
-    }
+    this.connect();
   }
 
   connect() {
     try {
-      console.log('📡 Attempting WebSocket connection to:', this.url);
       this.ws = new WebSocket(this.url);
 
+      this.ws.addEventListener('message', this.handleMessage.bind(this));
+      
+      // Add logging
       this.ws.addEventListener('open', () => {
-        console.log('✅ WebSocket connected successfully');
-        this.reconnectAttempts = 0;
-        // Send a test message to verify connection
-        this.ws.send(JSON.stringify({ type: 'HELLO' }));
+        console.log('✅ Blog WebSocket connected');
       });
 
-      this.ws.addEventListener('message', (event) => {
-        console.log('📨 [WebSocketClient] Raw message received:', event.data);
-        try {
-          const message = JSON.parse(event.data);
-          console.log('🔔 [WebSocketClient] Parsed message:', {
-            type: message.type,
-            data: message.data
-          });
-          
-          const handlers = this.subscribers.get(message.type);
-          if (handlers?.length) {
-            console.log(`📣 [WebSocketClient] Found ${handlers.length} handlers for type:`, message.type);
-            handlers.forEach(handler => {
-              console.log(`🎯 [WebSocketClient] Executing handler for ${message.type}`);
-              handler(message.data);
-            });
-          } else {
-            console.warn(`⚠️ [WebSocketClient] No handlers found for message type:`, message.type);
-            console.log(`📝 [WebSocketClient] Current subscribers:`, 
-              Array.from(this.subscribers.keys()));
-          }
-        } catch (err) {
-          console.error('❌ [WebSocketClient] Failed to parse message:', err);
-          console.log('📄 [WebSocketClient] Raw message was:', event.data);
-        }
-      });
-
+      // Add reconnection logic
       this.ws.addEventListener('close', () => {
-        console.log('📡 WebSocket disconnected');
-        this.reconnect();
+        console.log('🔌 Blog WebSocket closed, attempting reconnect...');
+        setTimeout(() => this.connect(), 1000);
       });
 
       this.ws.addEventListener('error', (error) => {
-        console.error('❌ WebSocket error:', error);
-        this.ws?.close();
+        console.error('❌ Blog WebSocket error:', error);
       });
 
     } catch (error) {
-      console.error('❌ Failed to create WebSocket:', error);
-      this.reconnect();
+      console.error('❌ Blog WebSocket connection failed:', error);
     }
-  }
-
-  reconnect() {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('❌ Max reconnection attempts reached');
-      return;
-    }
-
-    this.reconnectAttempts++;
-    console.log(`🔄 Reconnecting... Attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
-    
-    setTimeout(() => {
-      this.connect();
-    }, this.reconnectTimeout * this.reconnectAttempts);
   }
 
   subscribe(type, handler) {
-    console.log('📌 New subscription for:', type);
     if (!this.subscribers.has(type)) {
       this.subscribers.set(type, []);
     }
     this.subscribers.get(type).push(handler);
+    
     return () => this.unsubscribe(type, handler);
   }
 
@@ -100,11 +51,13 @@ export class WebSocketClient {
   }
 
   handleMessage(event) {
-    console.log('🔍 WebSocket raw message received:', event.data);
-    const { type, data } = JSON.parse(event.data);
-    console.log('🔍 Parsed message:', { type, data });
-    
-    this.subscribers.get(type)?.forEach(callback => callback(data));
+    try {
+        const { type, data } = JSON.parse(event.data);
+        // console.log('📨 Blog received WebSocket message:', { type, data });
+        this.subscribers.get(type)?.forEach(callback => callback(data));
+    } catch (error) {
+        console.error('❌ Failed to handle WebSocket message:', error);
+    }
   }
 }
 

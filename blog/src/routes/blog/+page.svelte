@@ -1,25 +1,44 @@
 <script>
 	import { formatDate } from '$lib/js/utils.js';
 	import { posts } from '$lib/stores';
-	import { onMount } from 'svelte';
 
-	export let data;
+// This logging statement will provide the raw payload received from the storeManager()	
+//	$: {
+//		console.log('Raw posts:', JSON.stringify($posts, null, 2));
+//	}
 	
-	// Use the store value when available, fallback to initial data
-	$: displayPosts = $posts.length ? $posts : data.posts.filter(post => post.published === 1);
+	// Map API posts to blog format directly from store
+    $: displayPosts = ($posts || [])
+        .filter(post => post.published)  // Only show published posts
+        .map(post => {
+		const metadata = JSON.parse(post.metadata);
+		
+		return {
+			slug: post.slug,
+			date: post.published_at || post.created_at,
+			name: post.title,
+			icon: metadata.icon,
+			description: metadata.description
+		};
+	});
+
 </script>
 
 <main>
 	<h1>blog</h1>
 
 	<div class="posts">
-		{#each displayPosts as post}
-			<a href={'/blog/' + post.slug} class="link" data-sveltekit-preload="off">
-				<div class="date">{formatDate(post.date)}</div>
-				<h2><iconify-icon icon={post.icon} />{post.name}<span class="arrow">-></span></h2>
-				<div class="description">{post.description}</div>
-			</a>
-		{/each}
+		{#if displayPosts.length > 0}
+			{#each displayPosts as post}
+				<a href={'/blog/' + post.slug} class="link" data-sveltekit-preload="on">
+					<div class="date">{formatDate(post.date)}</div>
+					<h2><iconify-icon icon={post.icon} />{post.name}<span class="arrow">-></span></h2>
+					<div class="description">{post.description}</div>
+				</a>
+			{/each}
+		{:else}
+            <p>No posts available.</p>
+        {/if}
 	</div>
 </main>
 
@@ -47,7 +66,6 @@
 		font-size: 1.2rem;
 		font-family: 'Space Mono', monospace;
 		color: var(--txt-2);
-		margin-top: 0.2rem;
 	}
 
 	a {
@@ -56,14 +74,14 @@
 		justify-content: left;
 		gap: 0.8rem 2rem;
 	}
-
+	
 	.description {
 		grid-column: 2;
 	}
 
 	@media (max-width: 600px) {
 		a {
-			grid-template-columns: auto;
+			grid-template-columns: 1fr;
 			gap: 0.8rem;
 
 			.description {

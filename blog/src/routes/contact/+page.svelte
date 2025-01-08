@@ -1,5 +1,12 @@
 <script>
-	let status = 'submit ->';
+	import { siteConfig } from '$lib/stores';
+
+	// This logging statement will provide the raw payload received from the storeManager()	
+//	$: {
+//		console.log('Raw siteConfig:', JSON.stringify($siteConfig, null, 2));
+//	}
+
+    let status = 'submit ->';
 	const handleSubmit = async (data) => {
 		status = 'submitting...';
 		const formData = new FormData(data.currentTarget);
@@ -21,23 +28,48 @@
 			status = 'message sent!';
 		}
 	};
+
+	// Reactive statement to track contact methods visibility
+	$: contactMethods = {
+		discord: Boolean($siteConfig?.contact_discord_visible) && $siteConfig?.contact_discord_url,
+		email: Boolean($siteConfig?.contact_email_visible) && $siteConfig?.contact_email,
+		instagram: Boolean($siteConfig?.contact_instagram_visible) && $siteConfig?.contact_instagram_url
+	};
 </script>
 
 <main>
 	<h1>contact</h1>
-	<p>ways to get in touch, in order from fastest to slowest.</p>
-	<div class="info">
-		discord <span class="sub">-></span>
-		<a href="https://discord.com/users/508863359777505290" class="external"
-			>refact0r<span class="arrow">/></span>
-		</a>
-	</div>
-	<div class="info">
-		email <span class="sub">-></span>
-		<a href="mailto:refact0r.contact@gmail.com" class="external"
-			>refact0r.contact@gmail.com<span class="arrow">/></span>
-		</a>
-	</div>
+	{#if $siteConfig.contact_description}
+		<p>{$siteConfig.contact_description}</p>
+	{/if}
+
+	{#if contactMethods.discord}
+		<div class="info">
+			discord <span class="sub">-></span>
+			<a href={$siteConfig.contact_discord_url} class="external">
+				{$siteConfig.contact_discord_handle}<span class="arrow">/></span>
+			</a>
+		</div>
+	{/if}
+
+	{#if contactMethods.email}
+		<div class="info">
+			email <span class="sub">-></span>
+			<a href="mailto:{$siteConfig.contact_email}" class="external">
+				{$siteConfig.contact_email}<span class="arrow">/></span>
+			</a>
+		</div>
+	{/if}
+
+	{#if contactMethods.instagram}
+		<div class="info">
+			instagram <span class="sub">-></span>
+			<a href={$siteConfig.contact_instagram_url} class="external">
+				{$siteConfig.contact_instagram_handle}<span class="arrow">/></span>
+			</a>
+		</div>
+	{/if}
+
 	<br />
 	<br />
 	<br />

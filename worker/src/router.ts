@@ -4,6 +4,7 @@ import { login } from './handlers/auth';
 import { createPost, getPost, getPosts, updatePost, deletePost, uploadPostImage, deletePostImage } from './handlers/posts';
 import { getSiteConfig, updateSiteConfig } from './handlers/site';
 import { generatePreview } from './handlers/preview';
+import { getAnimations, uploadAnimation, getAnimationByName } from './handlers/animations';
 
 type RouteHandler<E> = (
   request: Request,
@@ -181,6 +182,103 @@ function createRouter(): Router<Env> {
 
   // Add preview route
   router.post('/api/preview', generatePreview);
+
+  // Animation routes
+  router.get('/api/animations', getAnimations);
+  router.get('/api/animations/:name', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
+    return getAnimationByName(request, env, params);
+  });
+  router.post('/api/animations', uploadAnimation);
+  
+  // Add this new route for animation files
+  router.get('/api/animations/file/:key', async (request: Request, env: Env, ctx: ExecutionContext, params: { key: string }) => {
+    const obj = await env.MEDIA_BUCKET.get(decodeURIComponent(params.key));
+    
+    if (!obj) {
+      return new Response('Animation not found', { status: 404 });
+    }
+
+    const headers = new Headers();
+    headers.set('Content-Type', 'application/json');
+    headers.set('Cache-Control', 'public, max-age=31536000');
+    headers.set('Access-Control-Allow-Origin', '*');
+    
+    return new Response(obj.body, { headers });
+  });
+
+  // Add health check route
+  router.get('/api/health', async (request: Request, env: Env) => {
+    try {
+      // Check if animations table exists and has data
+      const { results } = await env.DB.prepare(`
+        SELECT name FROM sqlite_master 
+        WHERE type='table' AND name='animations'
+      `).all();
+      
+      console.log('🏥 Health check - Tables:', results);
+      
+      return new Response(JSON.stringify({ 
+        status: 'ok',
+        tables: results
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      console.error('❌ Health check failed:', error);
+      return new Response(JSON.stringify({ 
+        status: 'error',
+        error: error instanceof Error ? error.message : String(error)
+      }), { 
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  });
+
+  // Add this temporarily for cleanup
+  router.post('/api/debug/cleanup', async (request: Request, env: Env) => {
+    try {
+      console.log('🧹 Starting cleanup...');
+      
+      // Get all files from database
+      const { results: dbFiles } = await env.DB.prepare(`
+        SELECT * FROM media
+      `).all();
+      
+      console.log('📊 Files in database:', dbFiles);
+      
+      // List all files in R2
+      const r2List = await env.MEDIA_BUCKET.list();
+      console.log('📦 Files in R2:', r2List.objects);
+      
+      // Delete the problematic file from both places
+      await env.DB.prepare(`
+        DELETE FROM media 
+        WHERE r2_key LIKE '%c9675786-a03a-4812-8415-fef038877a7c%'
+      `).run();
+      
+      try {
+        await env.MEDIA_BUCKET.delete('c9675786-a03a-4812-8415-fef038877a7c-Bouy_4 Transparent.png');
+      } catch (e) {
+        console.log('R2 delete error (expected if file already gone):', e);
+      }
+      
+      return new Response(JSON.stringify({
+        message: 'Cleanup completed',
+        dbFiles,
+        r2Files: r2List.objects
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+    } catch (error) {
+      console.error('Cleanup error:', error);
+      return new Response(JSON.stringify({ error: 'Cleanup failed' }), { 
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  });
 
   return router;
 }
