@@ -3,6 +3,9 @@
     import MediaSelector from '$components/MediaSelector.svelte';
     import IconSelector from '$components/IconSelector.svelte';
     import { marked } from 'marked';
+
+    const API_URL = import.meta.env.VITE_API_URL;
+
     
     let post: {
         id: number;
@@ -34,7 +37,7 @@
         const token = localStorage.getItem('token');
         
         try {
-            const response = await fetch(`http://localhost:8787/api/posts/${id}`, {
+            const response = await fetch(`${API_URL}/posts/${id}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -64,7 +67,7 @@
         const token = localStorage.getItem('token');
 
         try {
-            const response = await fetch(`http://localhost:8787/api/posts/${post?.id}/images`, {
+            const response = await fetch(`${API_URL}/posts/${post?.id}/images`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -78,7 +81,7 @@
             
             // Insert image URL into markdown content at cursor position
             const textarea = document.querySelector('textarea[name="markdown_content"]') as HTMLTextAreaElement;
-            const imageUrl = `http://localhost:8787/post-images/${result.r2_key}`;
+            const imageUrl = `${API_URL}/post-images/${result.r2_key}`;
             const imageMarkdown = `![${file.name}](${imageUrl})`;
             
             const start = textarea.selectionStart;
@@ -108,7 +111,7 @@
         const token = localStorage.getItem('token');
 
         try {
-            const response = await fetch(`http://localhost:8787/api/posts/${post.id}`, {
+            const response = await fetch(`${API_URL}/posts/${post.id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',

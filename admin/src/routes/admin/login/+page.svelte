@@ -3,9 +3,11 @@
     let password = '';
     let error: string | null = null;
 
+    const API_URL = import.meta.env.VITE_API_URL;
+
     async function handleSubmit() {
         try {
-            const response = await fetch('http://localhost:8787/api/auth/login', {
+            const response = await fetch(`${API_URL}/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

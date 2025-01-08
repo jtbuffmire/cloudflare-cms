@@ -11,7 +11,7 @@ const authenticatedFetch = (url) =>
 
 export async function load() {
   try {
-    const API_BASE = 'http://localhost:8787/api';
+    const API_BASE = import.meta.env.VITE_API_URL;
     const [configRes, postsRes, mediaRes, animationsRes] = await Promise.all([
       authenticatedFetch(`${API_BASE}/site/config`),
       authenticatedFetch(`${API_BASE}/posts`),

@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+
+  const API_URL = import.meta.env.VITE_API_URL;
   
   let posts: Array<{
     id: number;
@@ -30,7 +32,7 @@
     
     try {
       console.log('🔄 Admin: Fetching posts...');
-      const response = await fetch('http://localhost:8787/api/posts?all=true', {
+      const response = await fetch(`${API_URL}/posts?all=true`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -61,7 +63,7 @@
     const token = localStorage.getItem('token');
     
     try {
-      const response = await fetch(`http://localhost:8787/api/posts/${id}`, {
+      const response = await fetch(`${API_URL}/posts/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -82,7 +84,7 @@
     const newStatus = currentStatus === 1 ? 0 : 1;
     
     try {
-      const response = await fetch(`http://localhost:8787/api/posts/${id}`, {
+      const response = await fetch(`${API_URL}/posts/${id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,

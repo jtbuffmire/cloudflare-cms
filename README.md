@@ -200,7 +200,7 @@ The database consists of several core tables:
 ### Debugging Database
 ```bash
 # View current database state
-curl http://localhost:8787/api/debug/db
+curl h${API_URL}/debug/db
 
 # Check specific table contents
 npx wrangler d1 execute cms-db --local --command="SELECT * FROM site_config;"
@@ -384,7 +384,7 @@ The database consists of several core tables:
 ### Debugging Database
 ```bash
 # View current database state
-curl http://localhost:8787/api/debug/db
+curl ${API_URL}/debug/db
 
 # Check specific table contents
 npx wrangler d1 execute cms-db --local --command="SELECT * FROM site_config;"
@@ -550,10 +550,6 @@ npx wrangler d1 execute cms-db --local --file=./migrations/sql/0001_meals_starte
 left to do 
 
 create a slider to increase the size of the home screen animation in the admin panel. 
-Clean up console logs:
-Remove debug logging from stores.js
-Clean up worker logs (keep error logging)
-Review all components for stray console.logs
 Production Configuration:
 Update any hardcoded URLs (like localhost:8787) to use environment variables
 Set up production environment variables in Cloudflare
@@ -569,3 +565,6 @@ Configure R2 bucket for production
 Set up D1 database for production
 Deploy the worker to production
 Deploy the frontend to Cloudflare Pages
+
+token replacement. 
+replace '/api/'

@@ -1,8 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
 
-  // console.log('API_URL:', API_URL); // Debug log
+  const API_URL = import.meta.env.VITE_API_URL;
   
   let files: Array<{
     id: string;
@@ -32,7 +31,7 @@
       loading = true;
       const token = localStorage.getItem('token');
       
-      const response = await fetch(`${API_URL}/api/media`, {
+      const response = await fetch(`${API_URL}/media`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -69,7 +68,7 @@
     console.log('🗑️ Deleting media:', mediaKey);
     
     try {
-      const response = await fetch(`${API_URL}/api/media/${mediaKey}`, {
+      const response = await fetch(`${API_URL}/media/${mediaKey}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -140,7 +139,7 @@
 
     const token = localStorage.getItem('token');
     try {
-      const response = await fetch(`${API_URL}/api/media/upload`, {
+      const response = await fetch(`${API_URL}/media/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -194,7 +193,7 @@
   async function togglePublish(id: string, currentState: boolean) {
     const token = localStorage.getItem('token');
     try {
-      const response = await fetch(`${API_URL}/api/media/${id}`, {
+      const response = await fetch(`${API_URL}/media/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -220,7 +219,7 @@
   async function handleNameUpdate(fileId: string, newName: string) {
     const token = localStorage.getItem('token');
     try {
-      const response = await fetch(`${API_URL}/api/media/${fileId}`, {
+      const response = await fetch(`${API_URL}/media/${fileId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -250,7 +249,7 @@
     const token = localStorage.getItem('token');
     
     try {
-      const response = await fetch(`${API_URL}/api/media/${fileId}`, {
+      const response = await fetch(`${API_URL}/media/${fileId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -276,7 +275,7 @@
     console.log('📝 Update request data:', metadata);
     const token = localStorage.getItem('token');
     try {
-        const response = await fetch(`${API_URL}/api/media/${fileId}`, {
+        const response = await fetch(`${API_URL}/media/${fileId}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -316,7 +315,7 @@
   async function updateMedia(id, updates) {
     console.log('Updating media:', id, updates);
     try {
-        const response = await fetch(`${API_URL}/api/media/${id}`, {
+        const response = await fetch(`${API_URL}/media/${id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',

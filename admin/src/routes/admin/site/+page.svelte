@@ -2,7 +2,7 @@
     import { onMount } from 'svelte';
     import { browser } from '$app/environment';
     
-    const API_URL = import.meta.env.VITE_API_URL || '';
+    const API_URL = import.meta.env.VITE_API_URL;
 
     // Animation-related state
     let showUploadModal = false;
@@ -77,9 +77,11 @@
         }
     }
 
+    
+
     onMount(async () => {
         try {
-            const response = await fetch(`${API_URL}/api/site/config`);
+            const response = await fetch(`${API_URL}/site/config`);
             if (response.status === 401) {
                 handleUnauthorized();
                 return;
@@ -89,7 +91,7 @@
                 formState = { ...data };
             }
 
-            const animationsResponse = await fetch(`${API_URL}/api/animations`);
+            const animationsResponse = await fetch(`${API_URL}/animations`);
             if (animationsResponse.ok) {
                 availableAnimations = await animationsResponse.json();
             }
@@ -103,7 +105,7 @@
         saveMessage = '';
 
         try {
-            const response = await fetch(`${API_URL}/api/site/config`, {
+            const response = await fetch(`${API_URL}/site/config`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formState)
@@ -155,6 +157,37 @@
     async function toggleVisibility(field: string) {
         formState[field] = !formState[field];
         await handleSubmit();
+    }
+
+    function handleFileSelect(event: Event) {
+        const input = event.target as HTMLInputElement;
+        if (input.files && input.files[0]) {
+            animationFile = input.files[0];
+        }
+    }
+
+    async function uploadNewAnimation() {
+        if (!animationFile || !newAnimationName) return;
+
+        const formData = new FormData();
+        formData.append('file', animationFile);
+        formData.append('name', newAnimationName);
+
+        try {
+            const response = await fetch(`${API_URL}/animations/upload`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                const newAnimation = await response.json();
+                availableAnimations = [...availableAnimations, newAnimation];
+                formState.lottie_animation = newAnimationName;
+                await handleSubmit();
+            }
+        } catch (error) {
+            console.error('Failed to upload animation:', error);
+        }
     }
 </script>
 

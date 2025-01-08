@@ -1,11 +1,13 @@
 import { browser } from '$app/environment';
 
+const WS_URL = import.meta.env.VITE_WS_URL;
+
 export class WebSocketClient {
   private ws: WebSocket | null = null;
   private reconnectTimeout: number = 1000;
   private subscribers: Map<string, Array<(data: any) => void>> = new Map();
   
-  constructor(private url: string = 'ws://localhost:8787/ws') {
+  constructor(private url: string = WS_URL) {
     if (browser) {
       this.connect();
     }

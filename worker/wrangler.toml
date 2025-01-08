@@ -5,7 +5,7 @@ compatibility_date = "2024-01-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "cms-db"
-database_id = "415687bf-0a9c-43d4-8580-075990ccf98d" # replaced on 2025-01-03
+database_id = "e425276a-525d-41d5-bc6a-9e2c17744ef5" # replaced on 2025-01-03
 migrations_dir = "migrations/sql"
 
 [[r2_buckets]]
@@ -27,9 +27,7 @@ tag = "v1"
 new_classes = ["WebSocketHandler"]
 
 [vars]
-ENVIRONMENT = "development" 
-
-# For development only - use wrangler secret for production
-JWT_SECRET = "d2a0c6a77dfc871cb6f5f584a456564cf07c7b21843680a15b7b50ed6ab92a48"
-ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "password"
+ENVIRONMENT = "production"
+SITE_URL = "https://buffmire.com"
+ADMIN_URL = "https://admin.buffmire.com"
+API_URL = "https://api.buffmire.com"

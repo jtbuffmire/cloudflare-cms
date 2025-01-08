@@ -110,7 +110,15 @@ export async function getPosts(request: Request, env: Env, ctx: ExecutionContext
 
 export async function createPost(request: Request, env: Env): Promise<Response> {
   try {
-    const data = await request.json();
+    const data = await request.json() as {
+      title?: string;
+      slug?: string;
+      markdown_content?: string;
+      content?: string;
+      html_content?: string;
+      metadata?: Record<string, any>;
+      published?: boolean;
+    };
     console.log('📝 Received post data:', data);
 
     // Validate required fields

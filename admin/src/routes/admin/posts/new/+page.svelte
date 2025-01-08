@@ -2,7 +2,8 @@
     import MediaSelector from '$components/MediaSelector.svelte';
     import IconSelector from '$components/IconSelector.svelte';
     import { marked } from 'marked';
-    import { API_URL } from '$lib/config';
+
+    const API_URL = import.meta.env.VITE_API_URL;
     
     let title = '';
     let slug = '';
@@ -59,7 +60,7 @@
                 metadata
             });
 
-            const response = await fetch('http://localhost:8787/api/posts', {
+            const response = await fetch(`${API_URL}/posts`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -81,7 +82,7 @@
 
             const post = await response.json();
             success = true;
-            newPostUrl = `http://localhost:8788/blog/${slug}`;
+            newPostUrl = `${API_URL}/blog/${slug}`;
             
             // Redirect after a short delay
             setTimeout(() => {
@@ -109,7 +110,7 @@
 
         try {
             // First create a draft post to get an ID
-            const draftResponse = await fetch('http://localhost:8787/api/posts', {
+            const draftResponse = await fetch(`${API_URL}/posts`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -128,7 +129,7 @@
             const draft = await draftResponse.json();
 
             // Then upload the image to this draft post
-            const response = await fetch(`http://localhost:8787/api/posts/${draft.id}/images`, {
+            const response = await fetch(`${API_URL}/posts/${draft.id}/images`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -142,7 +143,7 @@
             
             // Insert image URL into markdown content at cursor position
             const textarea = document.querySelector('textarea[name="markdown_content"]') as HTMLTextAreaElement;
-            const imageUrl = `http://localhost:8787/post-images/${result.r2_key}`;
+            const imageUrl = `${API_URL}/post-images/${result.r2_key}`;
             const imageMarkdown = `![${file.name}](${imageUrl})`;
             
             const start = textarea.selectionStart;
@@ -189,7 +190,7 @@
         showPreview = !showPreview;
         if (showPreview) {
             try {
-                const response = await fetch(`${API_URL}/api/preview`, {
+                const response = await fetch(`${API_URL}/preview`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

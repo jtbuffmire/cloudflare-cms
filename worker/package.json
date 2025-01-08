@@ -10,7 +10,10 @@
     "db:reset_hard": "node scripts/setup.js",
     "db:nuke": "echo 'Please delete the database manually from Cloudflare dashboard at https://dash.cloudflare.com/'",
     "test-token": "node scripts/generate-test-token.js",
-    "db:meals": "npx wrangler d1 execute cms-db --local --file=./migrations/sql/0000_initial.sql && npx wrangler d1 execute cms-db --local --file=./migrations/sql/0001_meals_starter.sql"
+    "db:meals": "npx wrangler d1 execute cms-db --local --file=./migrations/sql/0000_initial.sql && npx wrangler d1 execute cms-db --local --file=./migrations/sql/0001_meals_starter.sql",
+    "dev": "wrangler dev",
+    "build": "wrangler deploy",
+    "deploy": "wrangler deploy"
   },
   "keywords": [],
   "author": "",

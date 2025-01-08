@@ -44,7 +44,7 @@ export async function getMedia(request: Request, env: Env): Promise<Response> {
     const files = results.map(file => ({
       id: file.id,
       name: file.filename,
-      url: `http://localhost:8787/api/media/${file.r2_key}`,
+      url: `${API_URL}/media/${file.r2_key}`,
       type: file.mime_type,
       size: file.size,
       uploadedAt: file.created_at,
@@ -139,7 +139,7 @@ export async function uploadMedia(request: Request, env: Env): Promise<Response>
           file: {
             id: existingFile.id,
             name: existingFile.filename,
-            url: `http://localhost:8787/api/media/${existingFile.r2_key}`,
+            url: `${API_URL}/media/${existingFile.r2_key}`,
             type: existingFile.mime_type,
             size: existingFile.size,
             uploadedAt: existingFile.created_at,
@@ -192,7 +192,7 @@ export async function uploadMedia(request: Request, env: Env): Promise<Response>
       hash,
       file.type,
       file.size,
-      `http://localhost:8787/api/media/${r2Key}`,
+      `${API_URL}/media/${r2Key}`,
       null, // width - to be populated later
       null, // height - to be populated later
       null  // aspect_ratio - to be populated later
@@ -208,7 +208,7 @@ export async function uploadMedia(request: Request, env: Env): Promise<Response>
     const responseData = {
       id: result.id,
       name: result.filename,
-      url: `http://localhost:8787/api/media/${result.r2_key}`,
+      url: `${API_URL}/media/${result.r2_key}`,
       type: result.mime_type,
       size: result.size,
       uploadedAt: result.created_at,
@@ -476,7 +476,7 @@ export async function updateMedia(request: Request, env: Env, fileId: string): P
         const responseData = {
             id: result.id,
             name: result.filename,
-            url: `http://localhost:8787/api/media/${result.r2_key}`,
+            url: `${API_URL}/media/${result.r2_key}`,
             type: result.mime_type,
             size: result.size,
             uploadedAt: result.created_at,

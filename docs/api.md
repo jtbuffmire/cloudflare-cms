@@ -1,5 +1,5 @@
 1. Site Configuration API
-    #### GET /api/site/config
+    #### GET /site/config
     Returns the site's basic configuration.
 
     Response Structure:
@@ -30,7 +30,7 @@
     ```
 
 2. Posts API
-    #### GET /api/posts
+    #### GET /posts
     Returns all published posts.
 
     Response Structure:
@@ -55,7 +55,7 @@
     }
     ```
 
-    #### GET /api/posts/:id
+    #### GET /posts/:id
     Returns a single post by ID.
 
     #### WebSocket Events for Posts:
@@ -72,7 +72,7 @@
 
 
 3. Media API
-    #### GET /api/media
+    #### GET /media
     Returns all media files.
 
     Response Structure:
@@ -91,7 +91,7 @@
     }
     ```
 
-    #### GET /api/media/:key
+    #### GET /media/:key
     Returns the actual media file.
 
 4. WebSocket Connection

@@ -1,7 +1,7 @@
 import { token } from './stores/auth';
 import { get } from 'svelte/store';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
+const API_URL = import.meta.env.VITE_API_URL;
 
 async function fetchApi(endpoint: string, options: RequestInit = {}) {
   const authToken = get(token);
@@ -21,7 +21,7 @@ async function fetchApi(endpoint: string, options: RequestInit = {}) {
 
 export const api = {
   async login(username: string, password: string) {
-    const response = await fetchApi('/api/auth/login', {
+    const response = await fetchApi('/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password })
@@ -30,12 +30,12 @@ export const api = {
   },
 
   async getPosts() {
-    const response = await fetchApi('/api/posts');
+    const response = await fetchApi('/posts');
     return response.json();
   },
 
   async createPost(data: any) {
-    const response = await fetchApi('/api/posts', {
+    const response = await fetchApi('/posts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -46,7 +46,7 @@ export const api = {
   async uploadMedia(file: File) {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await fetchApi('/api/media', {
+    const response = await fetchApi('/media', {
       method: 'POST',
       body: formData
     });

@@ -41,6 +41,7 @@
 		gap: 2rem;
 	}
 
+	/* svelte-ignore unused-css-selector */
 	.animation-container {
 		width: 3.75rem;
 		height: 3.75rem;

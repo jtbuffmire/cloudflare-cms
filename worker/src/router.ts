@@ -114,29 +114,29 @@ function createRouter(): Router<Env> {
   const router = new Router<Env>();
 
   // Media routes
-  router.post('/api/media/upload', uploadMedia);
-  router.get('/api/media', getMedia);
-  router.get('/api/media/:key', getMediaFile);
-  router.delete('/api/media/:id', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
+  router.post('/media/upload', uploadMedia);
+  router.get('/media', getMedia);
+  router.get('/media/:key', getMediaFile);
+  router.delete('/media/:id', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
     return deleteMedia(request, env, params.id);
   });
-  router.put('/api/media/:id', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
+  router.put('/media/:id', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
     return updateMedia(request, env, params.id);
   });  
 
   // Post routes
-  router.post('/api/posts', createPost);
-  router.get('/api/posts/:id', getPost);
-  router.get('/api/posts', getPosts);
-  router.put('/api/posts/:id', updatePost); 
-  router.delete('/api/posts/:id', deletePost);
+  router.post('/posts', createPost);
+  router.get('/posts/:id', getPost);
+  router.get('/posts', getPosts);
+  router.put('/posts/:id', updatePost); 
+  router.delete('/posts/:id', deletePost);
 
   // Auth routes
-  router.post('/api/auth/login', login);
+  router.post('/auth/login', login);
   
   // Site config routes
-  router.get('/api/site/config', getSiteConfig);
-  router.put('/api/site/config', updateSiteConfig);
+  router.get('/site/config', getSiteConfig);
+  router.put('/site/config', updateSiteConfig);
 
   // WebSocket route
   router.get('/ws', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
@@ -147,17 +147,17 @@ function createRouter(): Router<Env> {
   });
 
   // Add maintenance routes
-  router.post('/api/maintenance/cleanup', async (request: Request, env: Env) => {
+  router.post('/maintenance/cleanup', async (request: Request, env: Env) => {
     // Check for admin authorization here
     return cleanupOrphanedFiles(env);
   });
 
   // Add these routes
-  router.post('/api/posts/:id/images', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
+  router.post('/posts/:id/images', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
     return uploadPostImage(request, env, ctx, params);
   });
 
-  router.delete('/api/posts/:id/images/:imageId', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
+  router.delete('/posts/:id/images/:imageId', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
     return deletePostImage(request, env, ctx, params);
   });
 
@@ -181,17 +181,17 @@ function createRouter(): Router<Env> {
   // console.log('Added site config routes:', Array.from(router.routes.get('GET')?.keys() || []));
 
   // Add preview route
-  router.post('/api/preview', generatePreview);
+  router.post('/preview', generatePreview);
 
   // Animation routes
-  router.get('/api/animations', getAnimations);
-  router.get('/api/animations/:name', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
+  router.get('/animations', getAnimations);
+  router.get('/animations/:name', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
     return getAnimationByName(request, env, params);
   });
-  router.post('/api/animations', uploadAnimation);
+  router.post('/animations', uploadAnimation);
   
   // Add this new route for animation files
-  router.get('/api/animations/file/:key', async (request: Request, env: Env, ctx: ExecutionContext, params: { key: string }) => {
+  router.get('/animations/file/:key', async (request: Request, env: Env, ctx: ExecutionContext, params: { key: string }) => {
     const obj = await env.MEDIA_BUCKET.get(decodeURIComponent(params.key));
     
     if (!obj) {
@@ -207,7 +207,7 @@ function createRouter(): Router<Env> {
   });
 
   // Add health check route
-  router.get('/api/health', async (request: Request, env: Env) => {
+  router.get('/health', async (request: Request, env: Env) => {
     try {
       // Check if animations table exists and has data
       const { results } = await env.DB.prepare(`
@@ -236,7 +236,7 @@ function createRouter(): Router<Env> {
   });
 
   // Add this temporarily for cleanup
-  router.post('/api/debug/cleanup', async (request: Request, env: Env) => {
+  router.post('/debug/cleanup', async (request: Request, env: Env) => {
     try {
       console.log('🧹 Starting cleanup...');
       

@@ -1,8 +1,5 @@
-import { browser } from '$app/environment';
-
-const WS_URL = import.meta.env.DEV 
-  ? 'ws://localhost:8787/ws'
-  : 'wss://api.buffmire.com/ws';
+const isBrowser = typeof window !== 'undefined';
+const WS_URL = isBrowser ? import.meta.env.VITE_WS_URL : null;
 
 export class WebSocketClient {
   constructor(url = WS_URL) {
@@ -11,10 +8,13 @@ export class WebSocketClient {
     /** @type {Map<string, Array<function(any):void>>} */
     this.subscribers = new Map();
     
-    this.connect();
+    if (isBrowser) {
+      this.connect();
+    }
   }
 
   connect() {
+    if (!isBrowser) return;
     try {
       this.ws = new WebSocket(this.url);
 
@@ -65,4 +65,5 @@ export class WebSocketClient {
   }
 }
 
-export const wsClient = new WebSocketClient(); 
+// Only create the client if we're in a browser
+export const wsClient = isBrowser ? new WebSocketClient() : null; 

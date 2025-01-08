@@ -1,5 +1,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
+
+    const API_URL = import.meta.env.VITE_API_URL;
     
     let isLoggedIn = false;
 
@@ -10,7 +12,7 @@
 
     async function login() {
         try {
-            const response = await fetch('http://localhost:8787/api/auth/login', {
+            const response = await fetch(`${API_URL}/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

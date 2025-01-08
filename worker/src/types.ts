@@ -4,6 +4,8 @@ export interface Env {
     POST_IMAGES: R2Bucket;
     ENVIRONMENT: string;
     CLOUDFLARE_DOMAIN: string;
+    SITE_URL: string;
+    ADMIN_URL: string;
     JWT_SECRET: string;
     ADMIN_USERNAME: string;
     ADMIN_PASSWORD: string;

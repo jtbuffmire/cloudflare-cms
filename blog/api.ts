@@ -1,8 +1,8 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
+const API_URL = import.meta.env.VITE_API_URL;
 
 export const api = {
   async getPosts() {
-    const response = await fetch(`${API_URL}/api/posts`);
+    const response = await fetch(`${API_URL}/posts`);
     if (!response.ok) {
       throw new Error('Failed to fetch posts');
     }
@@ -10,7 +10,7 @@ export const api = {
   },
 
   async getPost(id: string) {
-    const response = await fetch(`${API_URL}/api/posts/${id}`);
+    const response = await fetch(`${API_URL}/posts/${id}`);
     if (!response.ok) {
       throw new Error('Failed to fetch post');
     }

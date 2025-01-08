@@ -16,7 +16,7 @@
 			if ($siteConfig?.lottie_animation && $siteConfig.lottie_animation !== 'default-pin') {
 				const customAnimation = $animations.find(a => a.name === $siteConfig.lottie_animation);
 				if (customAnimation) {
-					const response = await fetch(`/api/animations/file/${encodeURIComponent(customAnimation.r2_key)}`);
+					const response = await fetch(`/animations/file/${encodeURIComponent(customAnimation.r2_key)}`);
 					if (response.ok) {
 						animationData = await response.json();
 					}

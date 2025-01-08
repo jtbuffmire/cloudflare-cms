@@ -1,6 +1,8 @@
 import { writable } from 'svelte/store';
 import { WebSocketClient } from './websocket';
 
+const isBrowser = typeof window !== 'undefined';
+
 // Create base stores
 export const siteConfig = writable({});
 export const posts = writable([]);
@@ -24,46 +26,38 @@ class StoreManager {
             console.log('🔄 Store already initialized, skipping');
             return;
         }
-        
-        // console.log('🔄 Initializing stores with data:', initialData);
 
+        // Set initial data
         if (initialData.siteConfig) {
-            // console.log('⚙️ Setting initial site config:', initialData.siteConfig);
             siteConfig.set(initialData.siteConfig);
-        } else {
-            console.warn('⚠️ No site config provided in initial data');
         }
-
         if (initialData.media) {
-            // console.log('⚙️ Setting site config:', initialData.media);
             media.set(initialData.media);
-        } else {
-            console.warn('⚠️ No media provided in initial data');
         }
-
         if (initialData.posts?.posts) {
-            // console.log('📝 Setting posts:', initialData.posts.posts);
             posts.set(initialData.posts.posts);
         }
-
         if (initialData.animations) {
-            // console.log('🎬 Setting animations:', initialData.animations);
             animations.set(initialData.animations);
         }
 
-        this.initWebSocket();
+        // Only initialize WebSocket in browser
+        if (isBrowser) {
+            this.initWebSocket();
+        }
+        
         this.initialized = true;
-        // console.log('✅ Store initialization complete');
     }
 
     initWebSocket() {
+        if (!isBrowser) return;
         console.log('🔌 Initializing WebSocket');
         this.ws = new WebSocketClient();
         
         this.ws.subscribe('SITE_CONFIG_UPDATE', message => {
             // Parse the message if it's a string
             const parsedMessage = typeof message === 'string' ? JSON.parse(message) : message;
-            console.log('📡 Received config update:', parsedMessage);
+            // console.log('📡 Received config update:', parsedMessage);
             
             // Check for the nested data structure
             if (parsedMessage?.data) {
@@ -80,7 +74,7 @@ class StoreManager {
             } else if (parsedMessage) {
                 // Fallback for direct config updates
                 const newData = parsedMessage;
-                console.log('📡 Setting direct config with transformed about sections');
+                console.log('📡 New config');
                 siteConfig.set({
                     ...newData,
                     about_sections: newData.about_sections?.map(s => ({
