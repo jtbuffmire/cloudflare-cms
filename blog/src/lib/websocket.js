@@ -1,7 +1,11 @@
 import { browser } from '$app/environment';
 
+const WS_URL = import.meta.env.DEV 
+  ? 'ws://localhost:8787/ws'
+  : 'wss://api.buffmire.com/ws';
+
 export class WebSocketClient {
-  constructor(url = 'ws://localhost:8787/ws') {
+  constructor(url = WS_URL) {
     this.url = url;
     this.ws = null;
     /** @type {Map<string, Array<function(any):void>>} */

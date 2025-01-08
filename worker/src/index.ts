@@ -99,7 +99,13 @@ export default {
     }
     
     // Apply CORS middleware for non-WebSocket requests
-    const corsHeaders = cors(request);
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': process.env.NODE_ENV === 'development' 
+        ? 'http://localhost:5173'
+        : 'https://buffmire.com, https://admin.buffmire.com',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    };
 
     // Handle OPTIONS request
     if (request.method === 'OPTIONS') {
