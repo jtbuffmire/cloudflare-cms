@@ -5,7 +5,7 @@ compatibility_date = "2024-01-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "cms-db"
-database_id = "d147ff80-967a-4f76-9191-b8e304cce591" # replaced on 2025-01-03
+database_id = "${DATABASE_ID}"
 migrations_dir = "migrations/sql"
 
 [[r2_buckets]]
@@ -25,6 +25,6 @@ new_classes = ["WebSocketHandler"]
 ENVIRONMENT = "development" 
 
 # For development only - use wrangler secret for production
-JWT_SECRET = "d2a0c6a77dfc871cb6f5f584a456564cf07c7b21843680a15b7b50ed6ab92a48"
-ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "password"
+JWT_SECRET = "${JWT_SECRET}"
+ADMIN_USERNAME = "${ADMIN_USERNAME}"
+ADMIN_PASSWORD = "${ADMIN_PASSWORD}"
