@@ -2,7 +2,7 @@
 	import { siteConfig } from '$lib/stores';
 
 	// This logging statement will provide the raw payload received from the storeManager()	
-//	$: {
+//		$: {
 //		console.log('Raw siteConfig:', JSON.stringify($siteConfig, null, 2));
 //	}
 
