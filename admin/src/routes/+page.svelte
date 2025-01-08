@@ -6,6 +6,7 @@
   let username = '';
   let password = '';
   let error = '';
+  let description = '';
 
   async function handleSubmit() {
     try {
@@ -44,6 +45,14 @@
         bind:value={password}
         required
       />
+    </div>
+    
+    <div class="field">
+      <label class="block mb-1" for="description">Admin Panel</label>
+      <textarea 
+        id="description" 
+        class="textarea w-full p-3"
+      ></textarea>
     </div>
     
     <button type="submit">Login</button>

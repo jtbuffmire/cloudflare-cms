@@ -1,3 +1,4 @@
 name = "admin"
-
+type = "javascript"
 compatibility_date = "2024-01-08"
+pages_build_output_dir = "./build"

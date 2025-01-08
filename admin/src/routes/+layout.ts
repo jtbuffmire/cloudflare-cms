@@ -2,7 +2,7 @@ import { wsClient } from '$lib/websocket';
 import { invalidate } from '$app/navigation';
 import { browser } from '$app/environment';
 
-export const ssr = true;
+export const ssr = false;
 
 if (browser) {
     wsClient.subscribe('POSTS_UPDATE', async (data) => {

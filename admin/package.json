@@ -28,6 +28,7 @@
 	"dependencies": {
 		"@skeletonlabs/skeleton": "^2.10.4",
 		"@skeletonlabs/tw-plugin": "^0.4.0",
+		"@sveltejs/adapter-static": "^3.0.8",
 		"@tiptap/core": "^2.10.4",
 		"@tiptap/pm": "^2.10.4",
 		"@tiptap/starter-kit": "^2.10.4",
