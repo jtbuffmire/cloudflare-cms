@@ -1,21 +1,58 @@
-<script>
-	import { storeManager } from '$lib/stores';
+<script lang="ts">
 	import { onMount } from 'svelte';
+	import { WebSocketClient } from '$lib/websocket';
+	import { siteConfig, posts, pics, animations } from '$lib/stores';
+	import type { SiteConfig, Post, PicsItem, Animation, AnimationsResponse } from '$lib/stores';
+	import { page } from '$app/stores';
 	import '../app.scss';
 	import '$lib/assets/fonts/space-mono.css';
 	import '$lib/assets/fonts/space-grotesk.css';
 	import 'iconify-icon';
-	import { page } from '$app/stores';
 	import Logo from '$lib/components/Logo.svelte';
 	import PageHead from '$lib/components/PageHead.svelte';
 	import { fly } from 'svelte/transition';
-	import { siteConfig, posts } from '$lib/stores';
-	export let data;
+	import { browser } from '$app/environment';
 
-	// One-time initialization when component mounts
-	onMount(() => {
-		storeManager.init(data);
-	});
+	export let data: {
+		siteConfig?: SiteConfig;
+		posts?: Post[];
+		pics?: PicsItem[];
+		animations?: Animation[];
+		pathname: string;
+	};
+
+	// Comprehensive logging of incoming data
+//	$: if (browser) {
+		// console.group('Layout Data Debug');
+		// console.log('🔄 Full data object:', data);
+		// console.log('📝 Posts:', {
+		// 	count: data.posts?.length || 0,
+		// 	posts: data.posts,
+		// 	publishedCount: data.posts?.filter(p => p.published)?.length || 0
+		// });
+		// console.log('⚙️ Site Config:', {
+		// 	config: data.siteConfig,
+		// 	navLinks: data.siteConfig?.nav_links
+		// });
+		// console.log('🖼️ Pics:', {
+		// 	count: data.pics?.length || 0,
+		// 	items: data.pics
+		// });
+		// console.log('🎨 Animations:', {
+		// 	count: data.animations?.length || 0,
+		// 	items: data.animations
+		// });
+		// console.log('🔍 Current pathname:', data.pathname);
+		// console.groupEnd();
+//	}
+	
+	export const form: unknown = undefined;
+
+	// Update stores with data
+	$: if (data.siteConfig) siteConfig.set(data.siteConfig);
+	$: if (data.posts) posts.set(data.posts);
+	$: if (data.pics) pics.set(data.pics);
+	$: if (data.animations) animations.set(data.animations);
 
 	// Static array for transitions
 	const pages = [
@@ -28,7 +65,7 @@
 
 	// Simplified navigation check
 	$: visiblePages = pages.filter(page => 
-		$siteConfig?.nav_links?.[page.name] === 1
+		$siteConfig?.nav_links?.[page.name]
 	);
 
 	let prevTwoPages = ['', ''];
@@ -36,14 +73,14 @@
 		prevTwoPages = [prevTwoPages[1], data.pathname];
 	}
 
-	function xy(path, isIn = true) {
+	function xy(path: string, isIn: boolean = true) {
 		if (path === prevTwoPages[0]) {
 			return { x: 0, y: 0 };
 		}
 
 		let currDepth = path.split('/').length;
 		let prevDepth = prevTwoPages[0].split('/').length;
-		const getParentPath = (p) => '/' + p.split('/')[1];
+		const getParentPath = (p: string) => '/' + p.split('/')[1];
 		const currParent = getParentPath(path);
 		const prevParent = getParentPath(prevTwoPages[0]);
 		let currParentIdx = pages.findIndex((page) => page.path === currParent);
@@ -64,7 +101,18 @@
 		return { x: `${isIn ? '' : '-'}${xDiff * 20}vh`, y: `${isIn ? '' : '-'}${yDiff * 20}vh` };
 	}
 
+	let ws: WebSocketClient;
+
+	onMount(() => {
+		ws = new WebSocketClient();
+		return () => ws.close();
+	});
 </script>
+
+<svelte:head>
+	<script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" async={false}></script>
+</svelte:head>
+
 <PageHead
 	title={$page.error ? $page.status : $siteConfig?.title ?? 'Loading...'}
 	description={$page.error ? $page.error.message : $siteConfig?.description ?? 'Loading...'}
@@ -107,6 +155,8 @@
 </div>
 
 <style lang="scss">
+	@use '../lib/styles/mixins';
+	
 	header {
 		display: flex;
 		justify-content: space-between;
@@ -123,7 +173,7 @@
 		}
 
 		.row {
-			@include flex(row, null, center);
+			@include mixins.flex(row, null, center);
 			gap: 1.5rem;
 
 			.pfp {

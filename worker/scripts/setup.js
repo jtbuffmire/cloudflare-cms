@@ -23,7 +23,7 @@ async function setup() {
     
     // Check R2 buckets
     const bucketList = runCommand('npx wrangler r2 bucket list');
-    const mediaBucketExists = bucketList.success && bucketList.output.includes('cms-media');
+    const picsBucketExists = bucketList.success && bucketList.output.includes('cms-media');
     const postImagesBucketExists = bucketList.success && bucketList.output.includes('post-images');
 
     // Handle D1 Database
@@ -43,8 +43,8 @@ async function setup() {
     }
 
     // Handle R2 Buckets
-    if (!mediaBucketExists) {
-        console.log('🏗️ Creating media bucket...');
+    if (!picsBucketExists) {
+        console.log('🏗️ Creating pics bucket...');
         runCommand('npx wrangler r2 bucket create cms-media');
     }
 

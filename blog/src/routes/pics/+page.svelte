@@ -1,23 +1,68 @@
-<script>
+<script lang="ts">
 	import { onMount } from 'svelte';
-	import { siteConfig, media } from '$lib/stores';
+	import { siteConfig, pics } from '$lib/stores';
+	import { API_BASE, API_VSN, getDefaultHeaders } from '$lib/config';
+	import { browser } from '$app/environment';
 
-	// Debug raw media data
-	// $: console.log('🔍 Raw media store data:', $media);
-	// Debug siteConfig data for pics description
-	// $: console.log('📝 Pics description:', $siteConfig?.pics_description);
+	// Get the current domain from the browser URL
+	const getCurrentDomain = () => {
+		if (browser) {
+			const hostname = window.location.hostname;
+			// If localhost, return the port as well to differentiate between admin and blog
+			if (hostname === 'localhost') {
+				return `${hostname}:${window.location.port}`;
+			}
+			return hostname;
+		}
+		return '';
+	};
 
-	// Filter media items
-    $: images = ($media || [])
-        .filter(item => item.published && item.show_in_pics)
+	function getPicUrl(url: string): string {
+		console.log('🔗 Input URL:', url);
+
+		// If the URL is already absolute, return it as is
+		if (url.startsWith('http://') || url.startsWith('https://')) {
+			return url;
+		}
+
+		const finalUrl = `${API_BASE}${API_VSN}${url}`;
+		console.log('🔗 Final URL:', finalUrl);
+		
+		// Add domain from default headers
+		const picUrl = new URL(finalUrl);
+		const domain = window.location.hostname.split(':')[0];
+		picUrl.searchParams.set('domain', domain);
+		
+		return picUrl.toString();
+	}
+
+	// Handle image load event
+	function handleImageLoad(event: Event) {
+		const img = event.currentTarget as HTMLImageElement;
+		img.style.opacity = '1';
+	}
+
+	// Debug raw picture data
+	$: console.log('🔍 Raw Picture store data:', $pics);
+
+	// Filter pictures 
+    $: images = ($pics || [])
+        .filter(item => {
+            console.log(`Filtering item ${item.id}:`, {
+                published: item.published,
+                show_in_pics: item.show_in_pics,
+                passes_filter: item.published && item.show_in_pics
+            });
+            return item.published && item.show_in_pics;
+        })
         .map(function(item) {
             return {
 				sources: {
-					avif: item.avif_url || null,
-					webp: item.webp_url || null
+					avif: item.avif_url ? getPicUrl(item.avif_url) : null,
+					webp: item.webp_url ? getPicUrl(item.webp_url) : null
 				},
 				img: { 
-					src: item.url, 
+					src: getPicUrl(item.url), 
 					w: item.width,
 					h: item.height
 				},
@@ -26,7 +71,7 @@
 			}
     	});
 
-
+    $: console.log('📸 Filtered images:', images.length);
 </script>
 
 <main>
@@ -47,12 +92,12 @@
 				src={image.img.src}
 				alt={image.text_description || ''}
 				loading="lazy"
-				onload="this.style.opacity=1"
+				on:load={handleImageLoad}
 				width={image.img.w}
 				height={image.img.h}
 			/>
 		</picture>
-		{#if image.text_description && image.text_description_visible}
+		{#if image.text_description}
 			<p class="image-description">{image.text_description}</p>
 		{/if}
 	{/each}

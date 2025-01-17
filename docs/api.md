@@ -71,13 +71,13 @@
     ```
 
 
-3. Media API
-    #### GET /media
-    Returns all media files.
+3. Picture API
+    #### GET /pics
+    Returns all picture files.
 
     Response Structure:
     ```typescript
-    interface MediaItem {
+    interface PicsItem {
     id: number;
     filename: string;
     r2_key: string;
@@ -91,8 +91,8 @@
     }
     ```
 
-    #### GET /media/:key
-    Returns the actual media file.
+    #### GET /pics/:key
+    Returns the actual picture file.
 
 4. WebSocket Connection
     #### WebSocket Connection
@@ -125,7 +125,7 @@
     1. All boolean values in the database are stored as 0/1
     2. All timestamps are in ISO format
     3. CORS is enabled for all API endpoints
-    4. Media files are stored in R2 buckets
+    4. Picture files are stored in R2 buckets
     5. Post content supports both Markdown and HTML formats
     6. WebSocket connections should handle reconnection logic
 

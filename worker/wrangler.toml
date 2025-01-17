@@ -1,22 +1,22 @@
-name = "cloudflare-cms"
+name = "cloudflare-cms-worker"
 main = "src/index.ts"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-01-08"
+
+[dev]
+port = 8787
+local_protocol = "http"
+ip = "localhost"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "cms-db"
-database_id = "e425276a-525d-41d5-bc6a-9e2c17744ef5" # replaced on 2025-01-03
+database_id = "e425276a-525d-41d5-bc6a-9e2c17744ef5"
 migrations_dir = "migrations/sql"
 
 [[r2_buckets]]
-binding = "MEDIA_BUCKET"
+binding = "BUCKET"
 bucket_name = "cms-media"
 preview_bucket_name = "cms-media-dev"
-
-[[r2_buckets]]
-binding = "POST_IMAGES"
-bucket_name = "post-images"
-preview_bucket_name = "post-images-dev"  # Optional, for local development
 
 [[durable_objects.bindings]]
 name = "WEBSOCKET_HANDLER"
@@ -26,8 +26,23 @@ class_name = "WebSocketHandler"
 tag = "v1"
 new_classes = ["WebSocketHandler"]
 
-[vars]
-ENVIRONMENT = "production"
-SITE_URL = "https://buffmire.com"
-ADMIN_URL = "https://admin.buffmire.com"
-API_URL = "https://api.buffmire.com"
+# Production environment
+[env.production]
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "cms-db"
+database_id = "e425276a-525d-41d5-bc6a-9e2c17744ef5"
+
+[[env.production.r2_buckets]]
+binding = "BUCKET"
+bucket_name = "cms-media"
+
+# Add durable objects configuration to production
+[[env.production.durable_objects.bindings]]
+name = "WEBSOCKET_HANDLER"
+class_name = "WebSocketHandler"
+
+# wrangler.toml (wrangler v3.88.0^)
+[observability.logs]
+enabled = true

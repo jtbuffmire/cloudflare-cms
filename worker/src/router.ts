@@ -1,38 +1,71 @@
-import { Env } from './types';
-import { getMedia, uploadMedia, getMediaFile, deleteMedia, updateMedia, cleanupOrphanedFiles } from './handlers/media';
+import type { Env } from './types';
+import { API_VSN } from './lib/api';
+import type { ExecutionContext, Response as CFResponse, Request as CFRequest } from '@cloudflare/workers-types';
+import { getPics, uploadPics, getPicsFile, deletePics, updatePics } from './handlers/pics';
 import { login } from './handlers/auth';
-import { createPost, getPost, getPosts, updatePost, deletePost, uploadPostImage, deletePostImage } from './handlers/posts';
-import { getSiteConfig, updateSiteConfig } from './handlers/site';
+import { createPost, getPost, getPosts, updatePost, deletePost } from './handlers/posts';
+import { getSiteConfig, updateSiteConfig, updateAnimationScale, updateBasicInfo } from './handlers/site';
 import { generatePreview } from './handlers/preview';
+import { protected_route } from './middleware/auth';
 import { getAnimations, uploadAnimation, getAnimationByName } from './handlers/animations';
+import type { DurableObjectNamespace } from '@cloudflare/workers-types';
+import { DEVELOPMENT_DOMAINS } from './lib/config';
+import { handleGetProjects, handleGetProject, handleCreateProject, handleUpdateProject, handleDeleteProject } from './handlers/projects';
+import { verify } from '@tsndr/cloudflare-worker-jwt';
 
-type RouteHandler<E> = (
-  request: Request,
-  env: E,
-  ctx: ExecutionContext,
-  params: Record<string, string>
-) => Promise<Response>;
+/**
+ * Type Casting Strategy for Cloudflare Workers
+ * 
+ * Due to type incompatibilities between the standard Web API Response type and 
+ * Cloudflare's Response type (CFResponse), we use type casting in this codebase.
+ * 
+ * The main differences are:
+ * 1. CFResponse.headers has additional methods (getAll, entries, keys, values)
+ * 2. CFResponse.body is a different ReadableStream type
+ * 3. Request types have additional properties in Cloudflare Workers
+ * 
+ * Our approach:
+ * - Cast new Response() to unknown first, then to CFResponse using `as unknown as CFResponse`
+ * - For KV operations, explicitly type the metadata using generics
+ * - For route handlers, ensure they accept CFRequest and return CFResponse
+ * - When copying response bodies or headers, use type assertions to handle ReadableStream differences
+ * 
+ * Common patterns:
+ * 1. New Response: 
+ *    return new Response(...) as unknown as CFResponse
+ * 
+ * 2. KV Operations:
+ *    const result = await env.ASSETS.getWithMetadata<string, { contentType: string }>(key)
+ * 
+ * 3. Response with body:
+ *    return new Response(response.body as BodyInit, {...}) as unknown as CFResponse
+ * 
+ * 4. Protected Routes:
+ *    router.get('/path', protected_route((request: CFRequest, ...) => Promise<CFResponse>))
+ */
 
-export class Router<E> {
-  private routes: Map<string, Map<string, RouteHandler<E>>> = new Map();
+type RouteHandler = (request: CFRequest, env: Env, ctx: ExecutionContext, params: Record<string, string>) => Promise<CFResponse>;
 
-  public get(path: string, handler: RouteHandler<E>) {
+export class Router {
+  private routes: Map<string, Map<string, RouteHandler>> = new Map();
+
+  public get(path: string, handler: RouteHandler): void {
     this.addRoute('GET', path, handler);
   }
 
-  public post(path: string, handler: RouteHandler<E>) {
+  public post(path: string, handler: RouteHandler): void {
     this.addRoute('POST', path, handler);
   }
 
-  public put(path: string, handler: RouteHandler<E>) {
+  public put(path: string, handler: RouteHandler): void {
     this.addRoute('PUT', path, handler);
   }
 
-  public delete(path: string, handler: RouteHandler<E>) {
+  public delete(path: string, handler: RouteHandler): void {
     this.addRoute('DELETE', path, handler);
   }
 
-  private addRoute(method: string, path: string, handler: RouteHandler<E>) {
+  private addRoute(method: string, path: string, handler: RouteHandler): void {
     if (!this.routes.has(method)) {
       this.routes.set(method, new Map());
     }
@@ -60,227 +93,191 @@ export class Router<E> {
     return params;
   }
 
-  public async handle(request: Request, env: E, ctx: ExecutionContext): Promise<Response> {
+  public async handle(request: CFRequest, env: Env, ctx: ExecutionContext): Promise<CFResponse> {
     const method = request.method;
     const url = new URL(request.url);
     const path = url.pathname;
 
-    // Debug: Print all registered routes
-    console.log('📍 Registered routes:', {
-        methods: Array.from(this.routes.keys()),
-        routes: Object.fromEntries(
-            Array.from(this.routes.entries()).map(([method, routes]) => [
-                method,
-                Array.from(routes.keys())
-            ])
-        )
-    });
-  
-    console.log('🔍 Request details:', { 
-        method, 
-        path, 
-        headers: Object.fromEntries(request.headers),
-        routeKeys: Array.from(this.routes.get(method)?.keys() || [])
-    });
-
-    console.log('🔍 Request details:', { 
-      method, 
-      path, 
-      headers: Object.fromEntries(request.headers),
-      routeKeys: Array.from(this.routes.get(method)?.keys() || [])
-    });
-
-    const methodRoutes = this.routes.get(method);
-    if (!methodRoutes) {
-      console.log('❌ Method not allowed:', method);
-      return new Response('Method not allowed', { status: 405 });
+    // Handle OPTIONS requests for all API routes
+    if (method === 'OPTIONS' && path.startsWith('/api/')) {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': request.headers.get('Origin') || '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Site-Domain',
+          'Access-Control-Max-Age': '86400',
+          'Access-Control-Allow-Credentials': 'true'
+        }
+      }) as unknown as CFResponse;
     }
 
+    // Find matching route
+    const methodRoutes = this.routes.get(method);
+    if (!methodRoutes) {
+      return new Response('Method not allowed', { status: 405 }) as unknown as CFResponse;
+    }
+
+    let matchedHandler: RouteHandler | null = null;
+    let params: Record<string, string> | null = null;
+
     for (const [routePath, handler] of methodRoutes.entries()) {
-      console.log('🔎 Trying to match:', { routePath, path });
-      const params = this.matchRoute(path, routePath);
+      params = this.matchRoute(path, routePath);
       if (params !== null) {
-        console.log('✅ Route matched:', { routePath, params });
-        return handler(request, env, ctx, params);
+        matchedHandler = handler;
+        break;
       }
     }
 
-    console.log('❌ No route matched for:', path);
-    return new Response('Not found', { status: 404 });
-  }
-} 
-
-function createRouter(): Router<Env> {
-  const router = new Router<Env>();
-
-  // Media routes
-  router.post('/media/upload', uploadMedia);
-  router.get('/media', getMedia);
-  router.get('/media/:key', getMediaFile);
-  router.delete('/media/:id', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
-    return deleteMedia(request, env, params.id);
-  });
-  router.put('/media/:id', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
-    return updateMedia(request, env, params.id);
-  });  
-
-  // Post routes
-  router.post('/posts', createPost);
-  router.get('/posts/:id', getPost);
-  router.get('/posts', getPosts);
-  router.put('/posts/:id', updatePost); 
-  router.delete('/posts/:id', deletePost);
-
-  // Auth routes
-  router.post('/auth/login', login);
-  
-  // Site config routes
-  router.get('/site/config', getSiteConfig);
-  router.put('/site/config', updateSiteConfig);
-
-  // WebSocket route
-  router.get('/ws', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
-    const id = env.WEBSOCKET_HANDLER.idFromName('default');
-    const handler = env.WEBSOCKET_HANDLER.get(id);
-    const response = await handler.fetch(request);
-    return response;
-  });
-
-  // Add maintenance routes
-  router.post('/maintenance/cleanup', async (request: Request, env: Env) => {
-    // Check for admin authorization here
-    return cleanupOrphanedFiles(env);
-  });
-
-  // Add these routes
-  router.post('/posts/:id/images', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
-    return uploadPostImage(request, env, ctx, params);
-  });
-
-  router.delete('/posts/:id/images/:imageId', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
-    return deletePostImage(request, env, ctx, params);
-  });
-
-  // Add route to serve images
-  router.get('/post-images/:key', async (request: Request, env: Env, ctx: ExecutionContext, params: { key: string }) => {
-    const obj = await env.POST_IMAGES.get(params.key);
-    
-    if (!obj) {
-        return new Response('Image not found', { status: 404 });
+    if (!matchedHandler || !params) {
+      return new Response('Not found', { status: 404 }) as unknown as CFResponse;
     }
 
-    const headers = new Headers();
-    obj.writeHttpMetadata(headers);
-    headers.set('etag', obj.httpEtag);
-    headers.set('cache-control', 'public, max-age=31536000');
-    
-    return new Response(obj.body, { headers });
-  });
-
-  // Debug line
-  // console.log('Added site config routes:', Array.from(router.routes.get('GET')?.keys() || []));
-
-  // Add preview route
-  router.post('/preview', generatePreview);
-
-  // Animation routes
-  router.get('/animations', getAnimations);
-  router.get('/animations/:name', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
-    return getAnimationByName(request, env, params);
-  });
-  router.post('/animations', uploadAnimation);
-  
-  // Add this new route for animation files
-  router.get('/animations/file/:key', async (request: Request, env: Env, ctx: ExecutionContext, params: { key: string }) => {
-    const obj = await env.MEDIA_BUCKET.get(decodeURIComponent(params.key));
-    
-    if (!obj) {
-      return new Response('Animation not found', { status: 404 });
-    }
-
-    const headers = new Headers();
-    headers.set('Content-Type', 'application/json');
-    headers.set('Cache-Control', 'public, max-age=31536000');
-    headers.set('Access-Control-Allow-Origin', '*');
-    
-    return new Response(obj.body, { headers });
-  });
-
-  // Add health check route
-  router.get('/health', async (request: Request, env: Env) => {
     try {
-      // Check if animations table exists and has data
-      const { results } = await env.DB.prepare(`
-        SELECT name FROM sqlite_master 
-        WHERE type='table' AND name='animations'
-      `).all();
-      
-      console.log('🏥 Health check - Tables:', results);
-      
-      return new Response(JSON.stringify({ 
-        status: 'ok',
-        tables: results
-      }), {
-        headers: { 'Content-Type': 'application/json' }
-      });
+      const response = await matchedHandler(request, env, ctx, params);
+      return response;
     } catch (error) {
-      console.error('❌ Health check failed:', error);
+      console.error('[ERROR] Route handler error:', error);
       return new Response(JSON.stringify({ 
-        status: 'error',
-        error: error instanceof Error ? error.message : String(error)
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : String(error)
       }), { 
         status: 500,
         headers: { 'Content-Type': 'application/json' }
-      });
+      }) as unknown as CFResponse;
     }
-  });
+  }
+}
 
-  // Add this temporarily for cleanup
-  router.post('/debug/cleanup', async (request: Request, env: Env) => {
-    try {
-      console.log('🧹 Starting cleanup...');
-      
-      // Get all files from database
-      const { results: dbFiles } = await env.DB.prepare(`
-        SELECT * FROM media
-      `).all();
-      
-      console.log('📊 Files in database:', dbFiles);
-      
-      // List all files in R2
-      const r2List = await env.MEDIA_BUCKET.list();
-      console.log('📦 Files in R2:', r2List.objects);
-      
-      // Delete the problematic file from both places
-      await env.DB.prepare(`
-        DELETE FROM media 
-        WHERE r2_key LIKE '%c9675786-a03a-4812-8415-fef038877a7c%'
-      `).run();
-      
-      try {
-        await env.MEDIA_BUCKET.delete('c9675786-a03a-4812-8415-fef038877a7c-Bouy_4 Transparent.png');
-      } catch (e) {
-        console.log('R2 delete error (expected if file already gone):', e);
-      }
-      
-      return new Response(JSON.stringify({
-        message: 'Cleanup completed',
-        dbFiles,
-        r2Files: r2List.objects
-      }), {
-        headers: { 'Content-Type': 'application/json' }
-      });
-      
-    } catch (error) {
-      console.error('Cleanup error:', error);
-      return new Response(JSON.stringify({ error: 'Cleanup failed' }), { 
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
+export function createRouter() {
+  const router = new Router();
+
+  // Basic auth endpoints
+  router.post(`${API_VSN}/login`, login as unknown as RouteHandler);
+
+  // Verify token endpoint
+  const verifyHandler: RouteHandler = async (request, env, ctx, params) => {
+    const token = request.headers.get('Authorization')?.split(' ')[1];
+    if (!token) {
+      return new Response('Unauthorized', { status: 401 }) as unknown as CFResponse;
     }
-  });
+
+    try {
+      const isValid = await verify(token, env.JWT_SECRET);
+      if (isValid) {
+        return new Response('Token valid', { status: 200 }) as unknown as CFResponse;
+      } else {
+        return new Response('Invalid token', { status: 401 }) as unknown as CFResponse;
+      }
+    } catch (err) {
+      console.error('Token verification error:', err);
+      return new Response('Invalid token', { status: 401 }) as unknown as CFResponse;
+    }
+  };
+  router.get(`${API_VSN}/verify`, verifyHandler);
+
+  // Public routes (for blog access)
+  router.get(`${API_VSN}/pics`, getPics as unknown as RouteHandler);          // List pics
+  router.get(`${API_VSN}/pics/:id`, getPicsFile as unknown as RouteHandler);  // Get single pic
+  router.get(`${API_VSN}/projects`, handleGetProjects as unknown as RouteHandler);
+  router.get(`${API_VSN}/projects/:id`, handleGetProject as unknown as RouteHandler);
+  router.get(`${API_VSN}/animations`, getAnimations as unknown as RouteHandler);
+  router.get(`${API_VSN}/animations/file/:name`, getAnimationByName as unknown as RouteHandler);
+  router.get(`${API_VSN}/site/config`, getSiteConfig as unknown as RouteHandler);
+  
+  // Public posts route with published filter
+  const postsHandler: RouteHandler = async (request, env, ctx, params) => {
+    const url = new URL(request.url);
+    const isPublishedOnly = url.searchParams.get('published') === 'true';
+    
+    if (isPublishedOnly) {
+      // Allow public access for published posts
+      return getPosts(request as CFRequest, env, ctx, params);
+    } else {
+      // Require authentication for all posts
+      return protected_route(getPosts)(request, env, ctx, params);
+    }
+  };
+
+  router.get(`${API_VSN}/posts`, postsHandler);
+
+  // Protected routes (require auth)
+  router.post(`${API_VSN}/pics`, protected_route(uploadPics) as unknown as RouteHandler);
+  router.put(`${API_VSN}/pics/:id`, protected_route(updatePics) as unknown as RouteHandler);
+  router.delete(`${API_VSN}/pics/:id`, protected_route(deletePics) as unknown as RouteHandler);
+
+  router.post(`${API_VSN}/posts`, protected_route(createPost) as unknown as RouteHandler);
+  router.get(`${API_VSN}/posts/:id`, protected_route(getPost) as unknown as RouteHandler);
+  router.put(`${API_VSN}/posts/:id`, protected_route(updatePost) as unknown as RouteHandler);
+  router.delete(`${API_VSN}/posts/:id`, protected_route(deletePost) as unknown as RouteHandler);
+  
+  router.post(`${API_VSN}/preview`, protected_route(generatePreview) as unknown as RouteHandler);
+
+  router.put(`${API_VSN}/site/config`, protected_route(updateSiteConfig) as unknown as RouteHandler);
+  router.put(`${API_VSN}/site/basic-info`, protected_route(updateBasicInfo) as unknown as RouteHandler);
+  router.put(`${API_VSN}/site/config/animation-scale`, protected_route(updateAnimationScale) as unknown as RouteHandler);
+
+  router.post(`${API_VSN}/animations`, protected_route(uploadAnimation) as unknown as RouteHandler);
+  
+  router.post(`${API_VSN}/projects`, protected_route(handleCreateProject) as unknown as RouteHandler);
+  router.put(`${API_VSN}/projects/:id`, protected_route(handleUpdateProject) as unknown as RouteHandler);
+  router.delete(`${API_VSN}/projects/:id`, protected_route(handleDeleteProject) as unknown as RouteHandler);
+
+  // WebSocket handler
+  const wsHandler: RouteHandler = async (request, env, ctx, params) => {
+    // Only handle WebSocket upgrade requests
+    if (request.headers.get('Upgrade') !== 'websocket') {
+      return new Response('Expected Upgrade: websocket', { status: 426 }) as unknown as CFResponse;
+    }
+
+    const url = new URL(request.url);
+    const domain = url.searchParams.get('domain');
+    
+    if (!domain) {
+      return new Response('Missing domain parameter', { status: 400 }) as unknown as CFResponse;
+    }
+
+    // Allow development domains
+    const isDevelopment = env.ENVIRONMENT === 'development';
+    if (!isDevelopment && !domain.includes('.')) {
+      return new Response('Invalid domain', { status: 400 }) as unknown as CFResponse;
+    }
+
+    try {
+      const pair = new WebSocketPair();
+      const [client, server] = Object.values(pair);
+
+      server.accept();
+
+      server.addEventListener('message', async (event) => {
+        try {
+          // Handle message
+        } catch (err) {
+          console.error('[ERROR] WebSocket message error:', err);
+        }
+      });
+
+      server.addEventListener('close', () => {
+        // Clean up on close
+      });
+
+      server.addEventListener('error', (err) => {
+        console.error('[ERROR] WebSocket error:', err);
+      });
+
+      return new Response(null, {
+        status: 101,
+        webSocket: client
+      }) as unknown as CFResponse;
+
+    } catch (err) {
+      console.error('[ERROR] WebSocket setup error:', err);
+      return new Response('WebSocket setup failed', { status: 500 }) as unknown as CFResponse;
+    }
+  };
+
+  // WebSocket route
+  router.get('/ws', wsHandler);
 
   return router;
 }
-
-export const router = createRouter();

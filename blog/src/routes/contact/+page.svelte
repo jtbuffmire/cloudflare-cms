@@ -1,17 +1,17 @@
-<script>
+<script lang="ts">
 	import { siteConfig } from '$lib/stores';
 
 	// This logging statement will provide the raw payload received from the storeManager()	
-//		$: {
+//	$: {
 //		console.log('Raw siteConfig:', JSON.stringify($siteConfig, null, 2));
 //	}
 
     let status = 'submit ->';
-	const handleSubmit = async (data) => {
+	const handleSubmit = async (data: SubmitEvent) => {
 		status = 'submitting...';
-		const formData = new FormData(data.currentTarget);
+		const formData = new FormData(data.currentTarget as HTMLFormElement);
 		const object = Object.fromEntries(formData);
-		object.access_key = 'e2076be5-0774-40df-b59a-4faead3fa269';
+		object.access_key = $siteConfig.web3forms_key;
 		const json = JSON.stringify(object);
 
 		const response = await fetch('https://api.web3forms.com/submit', {
@@ -31,9 +31,9 @@
 
 	// Reactive statement to track contact methods visibility
 	$: contactMethods = {
-		discord: Boolean($siteConfig?.contact_discord_visible) && $siteConfig?.contact_discord_url,
-		email: Boolean($siteConfig?.contact_email_visible) && $siteConfig?.contact_email,
-		instagram: Boolean($siteConfig?.contact_instagram_visible) && $siteConfig?.contact_instagram_url
+		discord: Boolean($siteConfig?.show_discord) && $siteConfig?.contact_discord_url,
+		email: Boolean($siteConfig?.show_email) && $siteConfig?.contact_email,
+		instagram: Boolean($siteConfig?.show_instagram) && $siteConfig?.contact_instagram_url
 	};
 </script>
 

@@ -1,39 +1,46 @@
 {
-	"name": "admin",
-	"private": true,
-	"version": "0.0.1",
-	"type": "module",
-	"scripts": {
-		"dev": "vite dev --port 5174",
-		"build": "vite build",
-		"preview": "vite preview",
-		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
-	},
-	"devDependencies": {
-		"@floating-ui/dom": "^1.6.12",
-		"@sveltejs/adapter-auto": "^3.1.1",
-		"@sveltejs/adapter-cloudflare": "^5.0.0",
-		"@sveltejs/kit": "^2.15.1",
-		"@sveltejs/vite-plugin-svelte": "^3.1.2",
-		"autoprefixer": "^10.4.20",
-		"postcss": "^8.4.49",
-		"sass": "^1.69.5",
-		"svelte": "^4.2.12",
-		"svelte-check": "^4.0.0",
-		"tailwindcss": "^3.4.17",
-		"typescript": "^5.0.0",
-		"vite": "^5.0.12"
-	},
-	"dependencies": {
-		"@skeletonlabs/skeleton": "^2.10.4",
-		"@skeletonlabs/tw-plugin": "^0.4.0",
-		"@sveltejs/adapter-static": "^3.0.8",
-		"@tiptap/core": "^2.10.4",
-		"@tiptap/pm": "^2.10.4",
-		"@tiptap/starter-kit": "^2.10.4",
-		"lottie-web": "^5.12.2",
-		"marked": "^15.0.5",
-		"svelte-routing": "^2.13.0"
-	}
+  "name": "cloudflare-cms",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "npm run build && wrangler pages dev",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "deploy": "npm run build && wrangler pages deploy",
+    "cf-typegen": "wrangler types && mv worker-configuration.d.ts src/"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250109.0",
+    "@iconify/json": "^2.2.295",
+    "@sveltejs/adapter-auto": "^3.0.0",
+    "@sveltejs/adapter-cloudflare": "^5.0.0",
+    "@sveltejs/kit": "^2.0.0",
+    "@sveltejs/vite-plugin-svelte": "^4.0.0",
+    "@tailwindcss/forms": "^0.5.10",
+    "@types/node": "^22.10.7",
+    "sass-embedded": "^1.83.4",
+    "svelte": "^5.0.0",
+    "svelte-check": "^4.0.0",
+    "typescript": "^5.0.0",
+    "unplugin-icons": "^22.0.0",
+    "vite": "^5.4.11",
+    "wrangler": "^3.101.0"
+  },
+  "dependencies": {
+    "@floating-ui/dom": "^1.6.13",
+    "@iconify/iconify": "^3.1.1",
+    "@iconify/svelte": "^4.2.0",
+    "autoprefixer": "^10.4.20",
+    "flowbite": "^2.5.2",
+    "flowbite-svelte": "^0.47.4",
+    "iconify-icon": "^2.3.0",
+    "marked": "^15.0.6",
+    "material-icons": "^1.13.12",
+    "postcss": "^8.4.49",
+    "tailwind-merge": "^2.6.0",
+    "tailwindcss": "^3.4.17"
+  }
 }

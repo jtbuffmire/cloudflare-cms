@@ -28,8 +28,10 @@
 </main>
 
 <style lang="scss">
+	@use '../lib/styles/mixins';
+
 	main {
-		@include flex(row, center, center);
+		@include mixins.flex(row, center, center);
 
 		height: 100%;
 		max-height: calc(100vh - 12rem);
@@ -37,18 +39,8 @@
 	}
 
 	.row {
-		@include flex(row, null, center);
+		@include mixins.flex(row, null, center);
 		gap: 2rem;
-	}
-
-	/* svelte-ignore unused-css-selector */
-	.animation-container {
-		width: 3.75rem;
-		height: 3.75rem;
-		
-		&.animation-complete {
-			/* Add any styles you want after animation completes */
-		}
 	}
 
 	h1 {

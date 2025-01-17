@@ -4,7 +4,7 @@ websocket.md
 
 ## Overview
 
-The CMS uses WebSocket connections for real-time updates between the backend (Cloudflare Worker) and frontends (Admin Panel and Blog). The WebSocket server runs on the Worker and manages bidirectional communication for instant updates to site configuration, posts, and media.
+The CMS uses WebSocket connections for real-time updates between the backend (Cloudflare Worker) and frontends (Admin Panel and Blog). The WebSocket server runs on the Worker and manages bidirectional communication for instant updates to site configuration, posts, and pictures.
 
 ## Connection Details
 
@@ -110,7 +110,7 @@ wsClient.subscribe('SITE_CONFIG_UPDATE', (data) => {
 
 // Subscribe to post updates
 wsClient.subscribe('POSTS_UPDATE', (data) => {
-  console.log('Posts updated:', data.posts);
+  // console.log('Posts updated:', data.posts);
   // Handle the update
 });
 ```

@@ -1,122 +1,206 @@
-export class WebSocketHandler implements DurableObject {
-  private sessions: Set<WebSocket>;
+import type { 
+  DurableObjectState,
+  WebSocket as CFWebSocket,
+  Response as CFResponse,
+  Request as CFRequest
+} from '@cloudflare/workers-types';
+import type { Env } from '../types';
+
+interface WebSocketMessage {
+  type: string;
+  domain?: string;
+  data?: any;
+}
+
+export class WebSocketHandler {
+  private sessions: Map<string, Set<CFWebSocket>>;
   private state: DurableObjectState;
   private env: Env;
+  private lastMessages: Map<string, string>; // Store last message per domain
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
     this.env = env;
-    this.sessions = new Set();
+    this.sessions = new Map();
+    this.lastMessages = new Map();
   }
 
-  async fetch(request: Request) {
-    const url = new URL(request.url);
-    console.log('🎯 WebSocketHandler fetch:', { 
-      pathname: url.pathname,
-      method: request.method 
-    });
+  // Helper to check if message is duplicate
+  private isDuplicateMessage(domain: string, message: WebSocketMessage): boolean {
+    const messageKey = `${domain}:${message.type}`;
+    const messageString = JSON.stringify(message.data);
+    const lastMessage = this.lastMessages.get(messageKey);
+    
+    if (lastMessage === messageString) {
+      console.log(`🔄 Duplicate message detected for ${domain}:`, message.type);
+      return true;
+    }
 
+    // Store new message
+    this.lastMessages.set(messageKey, messageString);
+    
+    // Cleanup old messages if map gets too large
+    if (this.lastMessages.size > 1000) {
+      const keys = Array.from(this.lastMessages.keys());
+      for (let i = 0; i < keys.length - 100; i++) {
+        this.lastMessages.delete(keys[i]);
+      }
+    }
+    
+    return false;
+  }
+
+  async fetch(request: CFRequest): Promise<CFResponse> {
+    const url = new URL(request.url);
+
+    // Handle WebSocket connections
     if (url.pathname === '/ws') {
       if (request.headers.get('Upgrade') !== 'websocket') {
-        console.log('❌ Not a WebSocket upgrade request');
-        return new Response('Expected Upgrade: websocket', { status: 426 });
+        return new Response('Expected Upgrade: websocket', { status: 426 }) as unknown as CFResponse;
       }
 
-      console.log('✨ Creating new WebSocket connection');
-      const { 0: client, 1: server } = new WebSocketPair();
-      await this.handleSession(server);
+      // Get domain from query parameter
+      const domain = url.searchParams.get('domain');
+      if (!domain) {
+        console.log('❌ Missing domain parameter in WebSocket connection');
+        return new Response('Missing domain parameter', { status: 400 }) as unknown as CFResponse;
+      }
+
+      // Create WebSocket pair
+      const pair = new WebSocketPair();
+      await this.handleSession(pair[1] as unknown as CFWebSocket, domain);
       
       return new Response(null, {
         status: 101,
-        webSocket: client,
+        webSocket: pair[0],
         headers: {
           'Upgrade': 'websocket',
           'Connection': 'Upgrade'
         }
-      });
+      }) as unknown as CFResponse;
     }
 
+    // Handle broadcast requests
     if (url.pathname === '/broadcast') {
-      const message = await request.json();
-      console.log('📢 [WebSocketHandler] Received broadcast request:', {
-        pathname: url.pathname,
-        message: JSON.stringify(message, null, 2)
+      const message = await request.json() as WebSocketMessage;
+      // Try to get domain from multiple sources in order of precedence
+      const domain = message.domain || 
+                     message.data?.domain || 
+                     request.headers.get('X-Site-Domain');
+      
+      if (!domain) {
+        console.log('❌ Missing domain parameter in broadcast');
+        return new Response('Missing domain parameter', { status: 400 }) as unknown as CFResponse;
+      }
+
+      // Check for duplicate message
+      if (this.isDuplicateMessage(domain, message)) {
+        return new Response(JSON.stringify({
+          success: true,
+          domain,
+          skipped: true,
+          reason: 'duplicate'
+        }), {
+          headers: { 'Content-Type': 'application/json' }
+        }) as unknown as CFResponse;
+      }
+
+      // Ensure domain is included in both the top level and data object of the broadcast message
+      const broadcastMessage = {
+        ...message,
+        domain,
+        data: {
+          ...message.data,
+          domain
+        }
+      };
+
+      console.log(`📢 Broadcasting message to domain ${domain}:`, broadcastMessage);
+      
+      const domainSessions = this.sessions.get(domain) || new Set();
+      let successCount = 0;
+      let failureCount = 0;
+
+      domainSessions.forEach(session => {
+        try {
+          session.send(JSON.stringify(broadcastMessage));
+          successCount++;
+        } catch (err) {
+          console.error(`Failed to send to session for domain ${domain}:`, err);
+          failureCount++;
+        }
       });
-      this.broadcast(message);
-      return new Response('OK');
+      
+      return new Response(JSON.stringify({
+        success: true,
+        domain,
+        data: message.data,
+        stats: {
+          total: domainSessions.size,
+          success: successCount,
+          failure: failureCount
+        }
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      }) as unknown as CFResponse;
     }
 
-    console.log('❌ Unknown path:', url.pathname);
-    return new Response('Not found', { status: 404 });
+    return new Response('Not found', { status: 404 }) as unknown as CFResponse;
   }
 
-  private async handleSession(ws: WebSocket) {
-    console.log('🔌 New WebSocket connection established');
-    this.sessions.add(ws);
-    ws.accept();
-    
-    // Send initial connection message
-    try {
-      ws.send(JSON.stringify({ type: 'CONNECTED' }));
-      console.log('✅ Sent connection confirmation');
-    } catch (err) {
-      console.error('❌ Failed to send connection confirmation:', err);
+  private async handleSession(webSocket: CFWebSocket, domain: string) {
+    // Initialize domain sessions if not exists
+    if (!this.sessions.has(domain)) {
+      this.sessions.set(domain, new Set());
     }
     
-    ws.addEventListener('message', async (msg) => {
-      // console.log('📨 Received WebSocket message:', msg.data);
-      if (msg.data === 'ping') return;
-      
+    // Add session to domain
+    const domainSessions = this.sessions.get(domain)!;
+    domainSessions.add(webSocket);
+    
+    // Send welcome message
+    webSocket.accept();
+    webSocket.send(JSON.stringify({ 
+      type: 'connected',
+      domain,
+      sessionCount: domainSessions.size
+    }));
+
+    // Handle messages
+    webSocket.addEventListener('message', async event => {
       try {
-        if (typeof msg.data === 'string') {
-          const data = JSON.parse(msg.data);
-          console.log('📨 Parsed message data:', data);
-          this.broadcast(data);
+        const data = JSON.parse(event.data as string) as WebSocketMessage;
+        // console.log(`📩 WebSocket message received for domain ${domain}:`, data);
+        
+        if (data.type === 'ping') {
+          webSocket.send(JSON.stringify({ type: 'pong', domain }));
         }
       } catch (err) {
-        console.error('❌ Failed to parse message:', err);
+        console.error(`WebSocket message error for domain ${domain}:`, err);
+        webSocket.send(JSON.stringify({ 
+          type: 'error',
+          message: 'Invalid message format',
+          domain 
+        }));
       }
     });
-    
-    ws.addEventListener('close', () => {
-      console.log('🔌 WebSocket connection closed');
-      this.sessions.delete(ws);
+
+    // Handle close
+    webSocket.addEventListener('close', () => {
+      console.log(`🔌 WebSocket closed for domain ${domain}`);
+      domainSessions.delete(webSocket);
+      if (domainSessions.size === 0) {
+        this.sessions.delete(domain);
+      }
     });
 
-    ws.addEventListener('error', (error) => {
-      console.error('❌ WebSocket error:', error);
-      this.sessions.delete(ws);
+    // Handle errors
+    webSocket.addEventListener('error', err => {
+      console.error(`❌ WebSocket error for domain ${domain}:`, err);
+      domainSessions.delete(webSocket);
+      if (domainSessions.size === 0) {
+        this.sessions.delete(domain);
+      }
     });
   }
-
-  private broadcast(data: any) {
-    const message = JSON.stringify(data);
-    console.log(`📢 [WebSocketHandler] Broadcasting message:`, {
-      type: data.type,
-      messageLength: message.length,
-      activeSessions: this.sessions.size,
-      data: JSON.stringify(data, null, 2)
-    });
-    
-    let successCount = 0;
-    let failCount = 0;
-    
-    this.sessions.forEach(ws => {
-        try {
-            ws.send(message);
-            successCount++;
-            // console.log(`✅ Successfully sent to session`);
-        } catch (err) {
-            failCount++;
-            // console.error('❌ Failed to send to session:', err);
-            this.sessions.delete(ws);
-        }
-    });
-    
-    console.log(`📊 Broadcast results:`, {
-      successful: successCount,
-      failed: failCount,
-      totalSessions: this.sessions.size
-    });
-  }
-} 
+}

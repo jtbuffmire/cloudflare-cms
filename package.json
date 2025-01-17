@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@sveltejs/kit": "^2.15.2"
+  }
+}

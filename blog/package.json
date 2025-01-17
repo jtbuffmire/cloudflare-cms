@@ -5,7 +5,7 @@
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",
-		"preview": "vite preview",
+		"preview": "vite preview --port 4174",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"test": "npm run test:integration && npm run test:unit",
@@ -17,14 +17,17 @@
 		"deploy": "bun run build && wrangler pages deploy"
 	},
 	"devDependencies": {
+		"@iconify-json/material-symbols": "^1.2.12",
 		"@iconify-json/ph": "^1.1.13",
+		"@iconify/json": "^2.2.295",
 		"@playwright/test": "^1.44.1",
-		"@sveltejs/adapter-cloudflare": "^4.0.0",
-		"@sveltejs/adapter-static": "^3.0.2",
+		"@sveltejs/adapter-cloudflare": "^5.0.0",
+		"@sveltejs/adapter-static": "^3.0.8",
 		"@sveltejs/enhanced-img": "^0.3.0",
-		"@sveltejs/kit": "^2.0.0",
-		"@sveltejs/vite-plugin-svelte": "^3.0.0",
+		"@sveltejs/kit": "^2.15.2",
+		"@sveltejs/vite-plugin-svelte": "^3.1.2",
 		"@types/eslint": "^8.56.10",
+		"@types/ws": "^8.5.13",
 		"eslint": "^9.5.0",
 		"eslint-config-prettier": "^9.1.0",
 		"eslint-plugin-svelte": "^2.40.0",
@@ -32,11 +35,11 @@
 		"prettier": "^3.3.2",
 		"prettier-plugin-svelte": "^3.2.5",
 		"sass": "^1.83.1",
-		"svelte": "^4.2.18",
+		"svelte": "^4.2.19",
 		"svelte-check": "latest",
 		"svelte-preprocess": "^6.0.3",
 		"typescript": "latest",
-		"unplugin-icons": "^0.19.0",
+		"unplugin-icons": "^0.19.3",
 		"vite": "^5.4.11",
 		"vitest": "^1.6.0"
 	},
@@ -44,10 +47,15 @@
 	"dependencies": {
 		"@fontsource-variable/space-grotesk": "^5.0.18",
 		"@fontsource/space-mono": "^5.0.20",
-		"embla-carousel-svelte": "^8.1.5",
-		"iconify-icon": "^2.1.0",
+		"@types/marked": "^5.0.2",
+		"embla-carousel-svelte": "^8.5.2",
+		"iconify-icon": "^2.3.0",
 		"lottie-web": "^5.12.2",
+		"marked": "^15.0.6",
+		"sass-embedded": "^1.83.4",
 		"shiki": "^1.9.0",
-		"wrangler": "^3.61.0"
+		"svelte-hmr": "^0.16.0",
+		"wrangler": "^3.61.0",
+		"ws": "^8.18.0"
 	}
 }

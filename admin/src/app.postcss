@@ -1,5 +1,84 @@
+/* Import Flowbite CSS */
+@import 'flowbite/dist/flowbite.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-html, body { @apply h-full overflow-hidden; }
+/* Dark theme configuration */
+:root {
+  --background-color: #111827;
+  --text-color: #f3f4f6;
+}
+
+body {
+  @apply bg-gray-900 text-gray-100;
+}
+
+/* Dark theme overrides */
+.navbar {
+  @apply bg-gray-800 border-gray-700;
+}
+
+.card {
+  @apply bg-gray-800 border-gray-700;
+}
+
+.input, .textarea {
+  @apply bg-gray-700 border-gray-600 text-white;
+}
+
+.input:focus, .textarea:focus {
+  @apply border-blue-500 ring-blue-500;
+}
+
+.btn-primary {
+  @apply text-white bg-blue-600 hover:bg-blue-700 focus:ring-blue-800;
+}
+
+.btn-secondary {
+  @apply text-gray-300 bg-gray-600 hover:bg-gray-700 hover:text-white;
+}
+
+.btn-danger {
+  @apply text-white bg-red-600 hover:bg-red-700 focus:ring-red-900;
+}
+
+/* Table styles */
+.table {
+  @apply w-full text-sm text-left text-gray-400;
+}
+
+.table thead {
+  @apply text-xs uppercase bg-gray-700 text-gray-400;
+}
+
+.table tbody tr {
+  @apply border-b bg-gray-800 border-gray-700;
+}
+
+.table tbody tr:hover {
+  @apply bg-gray-700;
+}
+
+/* Form styles */
+.label {
+  @apply block mb-2 text-sm font-medium text-gray-300;
+}
+
+.select {
+  @apply bg-gray-700 border-gray-600 text-white focus:ring-blue-500 focus:border-blue-500;
+}
+
+/* Modal styles */
+.modal {
+  @apply bg-gray-800 text-gray-300;
+}
+
+.modal-header {
+  @apply border-gray-600;
+}
+
+.modal-footer {
+  @apply border-gray-600;
+} 

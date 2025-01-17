@@ -1,69 +1,75 @@
-<script>
+<script lang="ts">
+	import { marked } from 'marked';
 	import Image from '$lib/components/Image.svelte';
 	import emblaCarouselSvelte from 'embla-carousel-svelte';
+	import type { EmblaCarouselType, EmblaOptionsType } from 'embla-carousel';
+	import type { PageData } from './$types';
 
-	export let data;
+	export let data: PageData;
+	
+	$: ({ project } = data);
+	$: content = marked(project.content);
 
-	let { default: content, metadata } = data.post;
-
-	let emblaApi;
-	let options = { loop: true, align: 'center' };
+	let emblaApi: EmblaCarouselType;
+	let options: EmblaOptionsType = { loop: true, align: 'start' };
 	let loop = true;
 
-	function emblaInit(event) {
+	function emblaInit(event: CustomEvent<EmblaCarouselType>) {
 		emblaApi = event.detail;
 		loop = emblaApi.internalEngine().slideLooper.canLoop();
 	}
 
 	function emblaNext() {
-		emblaApi.scrollNext();
+		emblaApi?.scrollNext();
 	}
 
 	function emblaPrev() {
-		emblaApi.scrollPrev();
+		emblaApi?.scrollPrev();
 	}
 </script>
 
 <main>
 	<div class="head">
 		<div class="row">
-			<h1>{metadata.name}</h1>
+			<h1>{project.name}</h1>
 			<div class="links">
-				{#if metadata.website}
-					<a class="external" href={metadata.website} target="_blank">
+				{#if project.website}
+					<a class="external" href={project.website} target="_blank">
 						site<span class="arrow">/></span>
 					</a>
 				{/if}
-				{#if metadata.github}
-					<a class="external" href={metadata.github} target="_blank">
+				{#if project.github}
+					<a class="external" href={project.github} target="_blank">
 						github<span class="arrow">/></span>
 					</a>
 				{/if}
 			</div>
 		</div>
 		<p class="description">
-			{metadata.description}
+			{project.description}
 		</p>
 	</div>
-	<!-- {#if metadata.images.length > 1} -->
-	<div class="embla" use:emblaCarouselSvelte={{ options }} on:emblaInit={emblaInit}>
-		<div class="embla__container" class:loop>
-			{#each metadata.images as image}
-				<div class="embla__slide" class:tall={metadata.aspect_ratio === 'tall'}>
-					<Image {image} alt={metadata.description} sizes="(min-width: 800px) 80vw, 100vw" />
-				</div>
-			{/each}
+
+	{#if project.images && project.images.length > 0}
+		<div class="embla" use:emblaCarouselSvelte={{ options, plugins: [] }} on:emblaInit={emblaInit}>
+			<div class="embla__container" class:loop>
+				{#each project.images as image}
+					<div class="embla__slide">
+						<Image {image} alt={project.description} sizes="(min-width: 800px) 80vw, 100vw" />
+					</div>
+				{/each}
+			</div>
+			<button class="embla__prev" on:click={emblaPrev}><span>&lt;-</span></button>
+			<button class="embla__next" on:click={emblaNext}><span>-></span></button>
 		</div>
-		<button class="embla__prev" on:click={emblaPrev}><span>&lt;-</span></button>
-		<button class="embla__next" on:click={emblaNext}><span>-></span></button>
-	</div>
-	<!-- {:else}
+	{:else if project.thumbnail}
 		<div class="single-image">
-			<Image image={metadata.images[0]} alt={metadata.description} />
+			<Image image={project.thumbnail} alt={project.description} />
 		</div>
-	{/if} -->
+	{/if}
+
 	<div class="content">
-		<svelte:component this={content} />
+		{@html content}
 	</div>
 </main>
 
@@ -93,7 +99,9 @@
 
 		.row,
 		.links {
-			@include flex(row, null, center);
+			display: flex;
+			flex-direction: row;
+			align-items: center;
 			gap: 1rem 2rem;
 		}
 
@@ -125,6 +133,7 @@
 			justify-content: unset;
 		}
 	}
+	/* svelte-ignore unused-css-selector */
 	.embla__slide {
 		flex: 0 0 70%;
 		max-width: 80rem;

@@ -1,319 +1,555 @@
-import { Env } from '../types';
+import type { CFRequest, CFResponse, Env } from '../types';
+import { ExecutionContext } from '@cloudflare/workers-types';
+
+// Utility function to get domain from headers
+function getDomainFromHeaders(request: CFRequest): string | null {
+  const domain = request.headers.get('X-Site-Domain');
+  if (!domain) return null;
+  // Strip port number from domain if present
+  return domain.split(':')[0];
+}
 
 interface SiteConfig {
+  id?: number;
+  domain: string;
+  site_domain: string;
   title: string;
   description: string;
-  nav_links: Record<string, number>;
-  lottie_animation: string | null;
-  about_description: string | null;
+  nav_links: Record<string, boolean>;
+  lottie_animation: string;
+  lottie_animation_r2_key?: string | null;
+  scale_factor?: number;
+  about_description: string;
   about_sections: Array<{
     title: string;
-    visible: number | boolean;
-    content: string; // <-- plain string
+    visible: boolean;
+    content: string;
   }>;
+  pics_description: string;
+  contact_description: string;
+  contact_email: string;
+  contact_discord_handle: string;
+  contact_discord_url: string;
+  contact_instagram_url: string;
+  contact_instagram_handle: string;
+  web3forms_key: string;
+  show_email: boolean;
+  show_discord: boolean;
+  show_instagram: boolean;
+}
+
+interface MergedConfig extends SiteConfig {
+  lottie_animation_r2_key?: string | null;
+}
+
+// Database row type
+interface SiteConfigRow {
+  id: number;
+  domain: string;
+  site_domain: string;
+  title: string | null;
+  description: string | null;
+  nav_links: string | null;
+  lottie_animation: string | null;
+  lottie_animation_r2_key: string | null;
+  scale_factor: number | null;
+  about_description: string | null;
+  about_section_headers: string | null;
+  about_section_contents: string | null;
   contact_description: string | null;
   contact_email: string | null;
-  contact_email_visible: number;
+  contact_email_visible: number | null;
   contact_discord_handle: string | null;
   contact_discord_url: string | null;
-  contact_discord_visible: number;
+  contact_discord_visible: number | null;
   contact_instagram_handle: string | null;
   contact_instagram_url: string | null;
-  contact_instagram_visible: number;
+  contact_instagram_visible: number | null;
   pics_description: string | null;
+  web3forms_key: string | null;
 }
 
-// Helper functions for boolean conversions
-function numbersToBooleans(obj: Record<string, number>) {
-  return Object.fromEntries(
-    Object.entries(obj).map(([k, v]) => [k, !!v])
-  );
-}
+async function broadcastSiteUpdate(env: Env, domain: string, config: SiteConfig) {
+  const doId = env.WEBSOCKET_HANDLER.idFromName('default');
+  const doStub = env.WEBSOCKET_HANDLER.get(doId);
+  const response = await doStub.fetch('https://internal/broadcast', {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      'X-Site-Domain': domain
+    },
+    body: JSON.stringify({
+      type: 'SITE_CONFIG_UPDATE',
+      data: config,
+      domain
+    })
+  });
 
-function booleansToNumbers(obj: Record<string, boolean>) {
-  return Object.fromEntries(
-    Object.entries(obj).map(([k, v]) => [k, v ? 1 : 0])
-  );
-}
-
-export async function getSiteConfig(request: Request, env: Env): Promise<Response> {
-  try {
-    const result = await env.DB.prepare(`
-      SELECT * FROM site_config WHERE id = 1
-    `).first();
-
-    if (!result) {
-      return new Response(JSON.stringify({ error: 'Site config not found' }), { 
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Parse JSON fields and convert numbers to booleans
-    const nav_links_raw = result?.nav_links ? JSON.parse(result.nav_links) : {};
-    const nav_links = numbersToBooleans(nav_links_raw);
-    
-    const headers = JSON.parse(result?.about_section_headers ?? '[]');
-    const contents = JSON.parse(result?.about_section_contents ?? '[]');
-    
-    // Create unified about_sections array
-    const about_sections = headers.map((header, i) => ({
-      title: header.title,
-      visible: Boolean(header.visible),
-      content: contents[i]?.text ?? ''
-    }));
-
-    // Build final config object with boolean values for visibility flags
-    const finalConfig = {
-      title: result?.title || '',
-      description: result?.description || '',
-      nav_links,  // Now contains boolean values
-      lottie_animation: result?.lottie_animation || null,
-      about_description: result?.about_description || null,
-      about_sections,
-      contact_description: result?.contact_description || null,
-      contact_email: result?.contact_email || null,
-      contact_email_visible: Boolean(result?.contact_email_visible),
-      contact_discord_handle: result?.contact_discord_handle || null,
-      contact_discord_url: result?.contact_discord_url || null,
-      contact_discord_visible: Boolean(result?.contact_discord_visible),
-      contact_instagram_handle: result?.contact_instagram_handle || null,
-      contact_instagram_url: result?.contact_instagram_url || null,
-      contact_instagram_visible: Boolean(result?.contact_instagram_visible),
-      pics_description: result?.pics_description || null
-    };
-
-    return new Response(JSON.stringify(finalConfig), {
-      headers: { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      }
-    });
-  } catch (error) {
-    console.error('❌ Error getting site config:', error);
-    return new Response(JSON.stringify({ error: 'Failed to get site config' }), { 
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+  if (!response.ok) {
+    console.warn('⚠️ WebSocket broadcast failed:', await response.text());
   }
 }
 
-export async function updateSiteConfig(request: Request, env: Env): Promise<Response> {
+export async function getSiteConfig(
+  request: CFRequest,
+  env: Env,
+  ctx: ExecutionContext,
+  params: Record<string, string>
+): Promise<CFResponse> {
   try {
-    const incoming = await request.json();
+    console.log('🔍 Getting site config');
 
-    // 1) Convert incoming boolean nav_links to numeric
-    const numericNavLinks = incoming.nav_links 
-      ? booleansToNumbers(incoming.nav_links)
-      : {};
-
-    // 2) Fetch the existing row
-    const oldRow = await env.DB.prepare(`
-      SELECT * FROM site_config 
-      WHERE id = 1
-    `).first();
-
-    if (!oldRow) {
-      return new Response(JSON.stringify({ error: 'Site config not found' }), { 
-        status: 404, 
+    // Get domain from X-Site-Domain header and strip port
+    const domain = getDomainFromHeaders(request);
+    if (!domain) {
+      console.log('❌ Missing X-Site-Domain header');
+      return new Response(JSON.stringify({ error: 'Missing X-Site-Domain header' }), { 
+        status: 400,
         headers: { 'Content-Type': 'application/json' }
-      });
+      }) as unknown as CFResponse;
+    }
+    console.log('🌐 Site domain from header (stripped port):', domain);
+
+    // Log all request headers for debugging
+    console.log('📨 Request headers:', Object.fromEntries(request.headers.entries()));
+
+    const result = await env.DB.prepare(`
+      SELECT * FROM site_config WHERE domain = ?
+    `).bind(domain).first();
+
+    console.log('📊 Raw DB Result:', JSON.stringify(result, null, 2));
+
+    if (!result) {
+      console.log('❌ No config found in DB for domain:', domain);
+      
+      // Create default config
+      const defaultConfig = {
+        domain,
+        site_domain: domain,  // Initially set to the same as internal domain
+        title: 'My Site',  // Default non-null title
+        description: 'Welcome to my site',  // Default non-null description
+        nav_links: {
+          projects: false,
+          blog: true,
+          pics: false,
+          about: true,
+          contact: true
+        },
+        lottie_animation: 'default-pin',  // Use the shared default animation
+        lottie_animation_r2_key: 'animations/default-pin.json',
+        about_description: '',
+        about_sections: [],
+        pics_description: '',
+        contact_description: '',
+        contact_email: '',
+        contact_discord_handle: '',
+        contact_discord_url: '',
+        contact_instagram_url: '',
+        contact_instagram_handle: '',
+        web3forms_key: '',
+        show_email: false,
+        show_discord: false,
+        show_instagram: false
+      };
+
+      // Insert default config into database
+      try {
+        const insertResult = await env.DB.prepare(`
+          INSERT INTO site_config (
+            domain,
+            site_domain,
+            title,
+            description,
+            nav_links,
+            lottie_animation,
+            lottie_animation_r2_key,
+            about_description,
+            about_section_headers,
+            about_section_contents,
+            pics_description,
+            contact_description,
+            contact_email,
+            contact_discord_handle,
+            contact_discord_url,
+            contact_instagram_handle,
+            contact_instagram_url,
+            contact_email_visible,
+            contact_discord_visible,
+            contact_instagram_visible,
+            web3forms_key
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          domain,
+          domain,  // site_domain initially same as domain
+          defaultConfig.title,
+          defaultConfig.description,
+          JSON.stringify(defaultConfig.nav_links),
+          defaultConfig.lottie_animation,  // Use the default animation name
+          defaultConfig.lottie_animation_r2_key,  // Use the default animation r2_key
+          '',
+          JSON.stringify([]),
+          JSON.stringify([]),
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          0,
+          0,
+          0,
+          ''
+        ).run();
+        console.log('✅ Created default config:', insertResult);
+        return new Response(JSON.stringify(defaultConfig), {
+          headers: { 'Content-Type': 'application/json' }
+        }) as unknown as CFResponse;
+      } catch (insertError) {
+        console.error('❌ Failed to create default config:', insertError);
+        return new Response(JSON.stringify({ error: 'Failed to create default config' }), { 
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        }) as unknown as CFResponse;
+      }
     }
 
-    // 3) Parse fields from oldRow (not "result")
-    const nav_links = oldRow?.nav_links ? JSON.parse(oldRow.nav_links) : {};
-    const headers = JSON.parse(oldRow?.about_section_headers ?? '[]');
-    const contents = JSON.parse(oldRow?.about_section_contents ?? '[]');
+    // Keep the important config parsing logic
+    const nav_links = result?.nav_links 
+      ? JSON.parse(result.nav_links as string) 
+      : {
+          projects: false,
+          blog: true,
+          pics: false,
+          about: true,
+          contact: true
+        };
+    console.log('🔗 Parsed nav_links:', nav_links);
 
-    // 4) Build a "currentConfig" from oldRow
-    const currentConfig = {
-      title: oldRow.title || '',
-      description: oldRow.description || '',
+    const headers = result?.about_section_headers ? JSON.parse(result.about_section_headers as string) : [];
+    const contents = result?.about_section_contents ? JSON.parse(result.about_section_contents as string) : [];
+    
+    console.log('📑 Parsed headers:', headers);
+    console.log('📝 Parsed contents:', contents);
+
+    const about_sections = headers.map((header: any, i: number) => ({
+      title: header.title,
+      visible: Boolean(header.visible),
+      content: contents[i]?.content?.text ?? ''
+    })) || [];
+
+    console.log('📋 Mapped about_sections:', about_sections);
+
+    // Build final config object
+    const finalConfig = {
+      id: result?.id || 1,
+      domain: domain,
+      site_domain: result?.site_domain || domain,
+      title: result?.title || '',
+      description: result?.description || '',
       nav_links,
-      lottie_animation: oldRow.lottie_animation || null,
-      about_description: oldRow.about_description || null,
-      about_sections: headers.map((header, i) => ({
-        title: header.title,
-        visible: Boolean(header.visible),
-        content: contents[i]?.text ?? ''
-      })),
-      contact_description: oldRow.contact_description || null,
-      contact_email: oldRow.contact_email || null,
-      contact_email_visible: Number(oldRow.contact_email_visible || 0),
-      contact_discord_handle: oldRow.contact_discord_handle || null,
-      contact_discord_url: oldRow.contact_discord_url || null,
-      contact_discord_visible: Number(oldRow.contact_discord_visible || 0),
-      contact_instagram_handle: oldRow.contact_instagram_handle || null,
-      contact_instagram_url: oldRow.contact_instagram_url || null,
-      contact_instagram_visible: Number(oldRow.contact_instagram_visible || 0),
-      pics_description: oldRow.pics_description || null
-    };
+      lottie_animation: result?.lottie_animation || '',
+      lottie_animation_r2_key: result?.lottie_animation_r2_key || null,
+      about_description: result?.about_description || '',
+      about_sections,
+      pics_description: result?.pics_description || '',
+      contact_description: result?.contact_description || '',
+      contact_email: result?.contact_email || '',
+      contact_discord_handle: result?.contact_discord_handle || '',
+      contact_discord_url: result?.contact_discord_url || '',
+      contact_instagram_url: result?.contact_instagram_url || '',
+      contact_instagram_handle: result?.contact_instagram_handle || '',
+      web3forms_key: result?.web3forms_key || '',
+      show_email: Boolean(result?.contact_email_visible),
+      show_discord: Boolean(result?.contact_discord_visible),
+      show_instagram: Boolean(result?.contact_instagram_visible),
+      scale_factor: 100  // Initialize with default value
+    } as SiteConfig;  // Add type assertion
 
-    // 5) Merge incoming changes into "currentConfig"
-    const mergedConfig = {
-      ...currentConfig,
-      ...(incoming.title !== undefined ? { title: incoming.title } : {}),
-      ...(incoming.description !== undefined ? { description: incoming.description } : {}),
-      ...(incoming.nav_links !== undefined ? { nav_links: incoming.nav_links } : {}),
-      ...(incoming.lottie_animation !== undefined ? {
-        lottie_animation: incoming.lottie_animation,
-        lottie_animation_r2_key: incoming.lottie_animation 
-          ? `animations/${incoming.lottie_animation}.json` 
-          : null
-      } : {}),
-      ...(incoming.about_description !== undefined ? { about_description: incoming.about_description } : {}),
-      ...(incoming.pics_description !== undefined ? { pics_description: incoming.pics_description } : {}),
-      ...(incoming.contact_description !== undefined ? { contact_description: incoming.contact_description } : {}),
-      ...(incoming.contact_email !== undefined ? { contact_email: incoming.contact_email } : {}),
-      ...(incoming.contact_email_visible !== undefined ? { contact_email_visible: incoming.contact_email_visible } : {}),
-      ...(incoming.contact_discord_handle !== undefined ? { contact_discord_handle: incoming.contact_discord_handle } : {}),
-      ...(incoming.contact_discord_url !== undefined ? { contact_discord_url: incoming.contact_discord_url } : {}),
-      ...(incoming.contact_discord_visible !== undefined ? { contact_discord_visible: incoming.contact_discord_visible } : {}),
-      ...(incoming.contact_instagram_handle !== undefined ? { contact_instagram_handle: incoming.contact_instagram_handle } : {}),
-      ...(incoming.contact_instagram_url !== undefined ? { contact_instagram_url: incoming.contact_instagram_url } : {}),
-      ...(incoming.contact_instagram_visible !== undefined ? { contact_instagram_visible: incoming.contact_instagram_visible } : {})
-    };
+    // Get the current animation scale from the animations table if there's an animation set
+    if (finalConfig.lottie_animation) {
+      const animationRow = await env.DB.prepare(
+        'SELECT scale_factor FROM animations WHERE domain = ? AND name = ?'
+      ).bind(domain, finalConfig.lottie_animation).first();
 
-    // If about_sections were updated, build new about_section_headers / contents
-    if (incoming.about_sections !== undefined) {
-      const about_section_headers = incoming.about_sections.map(section => ({
-        title: section.title,
-        visible: section.visible
-      }));
-
-      const about_section_contents = incoming.about_sections.map(section => ({
-        text: section.content
-      }));
-
-      mergedConfig.about_section_headers = about_section_headers;
-      mergedConfig.about_section_contents = about_section_contents;
+      if (animationRow && 'scale_factor' in animationRow) {
+        finalConfig.scale_factor = (animationRow.scale_factor as number) || 100;
+      } else {
+        finalConfig.scale_factor = 100;
+      }
+    } else {
+      finalConfig.scale_factor = 100;
     }
 
-    // 6) Convert nav_links back to numeric for storage
-    if (mergedConfig.nav_links) {
-      mergedConfig.nav_links = booleansToNumbers(mergedConfig.nav_links);
+    console.log('✅ Sending config:', finalConfig);
+
+    return new Response(JSON.stringify(finalConfig), {
+      headers: { 'Content-Type': 'application/json' }
+    }) as unknown as CFResponse;
+  } catch (error) {
+    console.error('❌ Error getting site config:', error);
+    return new Response(JSON.stringify({ 
+      error: 'Failed to get site config',
+      details: error instanceof Error ? error.message : String(error)
+    }), { status: 500 }) as unknown as CFResponse;
+  }
+}
+
+export async function updateSiteConfig(
+  request: CFRequest,
+  env: Env,
+  ctx: ExecutionContext,
+  params: Record<string, string>
+): Promise<CFResponse> {
+  try {
+    const domain = getDomainFromHeaders(request);
+    if (!domain) {
+      return Response.json({ error: 'Missing domain header' }, { status: 400 }) as unknown as CFResponse;
     }
 
-    // 7) Update DB
+    const incomingConfig = await request.json() as Partial<SiteConfig>;
+    
+    // Get existing config first
+    const existingRow = await env.DB.prepare('SELECT * FROM site_config WHERE domain = ?')
+      .bind(domain)
+      .first() as SiteConfigRow;
+    
+    if (!existingRow) {
+      return Response.json({ error: 'Config not found' }, { status: 404 }) as unknown as CFResponse;
+    }
+
+    console.log('Existing config:', JSON.stringify(existingRow, null, 2));
+    
+    // Merge nav_links if provided, otherwise keep existing
+    const nav_links = incomingConfig.nav_links 
+      ? JSON.stringify(incomingConfig.nav_links)
+      : existingRow.nav_links;
+
+    // Merge about sections if provided
+    const about_sections = incomingConfig.about_sections
+      ? {
+          headers: JSON.stringify(incomingConfig.about_sections.map(s => ({ title: s.title, visible: s.visible }))),
+          contents: JSON.stringify(incomingConfig.about_sections.map(s => ({ content: { text: s.content, visible: true } })))
+        }
+      : {
+          headers: existingRow.about_section_headers,
+          contents: existingRow.about_section_contents
+        };
+
+    // Update only the fields that are provided in the incoming config
     const stmt = env.DB.prepare(`
       UPDATE site_config 
-      SET title = ?,
-          description = ?,
-          nav_links = ?,
-          lottie_animation = ?,
-          lottie_animation_r2_key = ?,
-          about_description = ?,
-          about_section_headers = ?,
-          about_section_contents = ?,
-          contact_description = ?,
-          contact_email = ?,
-          contact_email_visible = ?,
-          contact_discord_handle = ?,
-          contact_discord_url = ?,
-          contact_discord_visible = ?,
-          contact_instagram_handle = ?,
-          contact_instagram_url = ?,
-          contact_instagram_visible = ?,
-          pics_description = ?
-      WHERE id = 1
+      SET 
+        title = ?,
+        description = ?,
+        nav_links = ?,
+        lottie_animation = ?,
+        lottie_animation_r2_key = ?,
+        about_description = ?,
+        about_section_headers = ?,
+        about_section_contents = ?,
+        pics_description = ?,
+        contact_description = ?,
+        contact_email = ?,
+        contact_discord_handle = ?,
+        contact_discord_url = ?,
+        contact_instagram_handle = ?,
+        contact_instagram_url = ?,
+        contact_email_visible = ?,
+        contact_discord_visible = ?,
+        contact_instagram_visible = ?,
+        web3forms_key = ?
+      WHERE domain = ?
     `).bind(
-      mergedConfig.title,
-      mergedConfig.description,
-      JSON.stringify(mergedConfig.nav_links),
-      mergedConfig.lottie_animation,
-      mergedConfig.lottie_animation_r2_key,
-      mergedConfig.about_description,
-      JSON.stringify(mergedConfig.about_section_headers),
-      JSON.stringify(mergedConfig.about_section_contents),
-      mergedConfig.contact_description,
-      mergedConfig.contact_email,
-      mergedConfig.contact_email_visible,
-      mergedConfig.contact_discord_handle,
-      mergedConfig.contact_discord_url,
-      mergedConfig.contact_discord_visible,
-      mergedConfig.contact_instagram_handle,
-      mergedConfig.contact_instagram_url,
-      mergedConfig.contact_instagram_visible,
-      mergedConfig.pics_description
+      incomingConfig.title ?? existingRow.title,
+      incomingConfig.description ?? existingRow.description,
+      nav_links,
+      incomingConfig.lottie_animation ?? existingRow.lottie_animation,
+      incomingConfig.lottie_animation_r2_key ?? existingRow.lottie_animation_r2_key,
+      incomingConfig.about_description ?? existingRow.about_description,
+      about_sections.headers,
+      about_sections.contents,
+      incomingConfig.pics_description ?? existingRow.pics_description,
+      incomingConfig.contact_description ?? existingRow.contact_description,
+      incomingConfig.contact_email ?? existingRow.contact_email,
+      incomingConfig.contact_discord_handle ?? existingRow.contact_discord_handle,
+      incomingConfig.contact_discord_url ?? existingRow.contact_discord_url,
+      incomingConfig.contact_instagram_handle ?? existingRow.contact_instagram_handle,
+      incomingConfig.contact_instagram_url ?? existingRow.contact_instagram_url,
+      incomingConfig.show_email !== undefined ? Number(incomingConfig.show_email) : existingRow.contact_email_visible,
+      incomingConfig.show_discord !== undefined ? Number(incomingConfig.show_discord) : existingRow.contact_discord_visible,
+      incomingConfig.show_instagram !== undefined ? Number(incomingConfig.show_instagram) : existingRow.contact_instagram_visible,
+      incomingConfig.web3forms_key ?? existingRow.web3forms_key,
+      domain
     );
 
-    await stmt.run();
+    const result = await stmt.run();
+    console.log('Update result:', result);
 
-    // 8) Re-fetch updated row from DB
-    const updatedRow = await env.DB
-      .prepare(`SELECT * FROM site_config WHERE id = 1`)
-      .first();
+    // Get updated config to return
+    const updatedRow = await env.DB.prepare('SELECT * FROM site_config WHERE domain = ?')
+      .bind(domain)
+      .first() as SiteConfigRow;
 
-    if (!updatedRow) {
-      return new Response(
-        JSON.stringify({ error: 'Failed to fetch updated config' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // 9) Parse the final updated row
-    const finalNavLinks = updatedRow.nav_links ? JSON.parse(updatedRow.nav_links) : {};
-    const finalHeaders  = JSON.parse(updatedRow.about_section_headers ?? '[]');
-    const finalContents = JSON.parse(updatedRow.about_section_contents ?? '[]');
-
-    // You build `finalConfig` here:
-    const finalConfig = {
+    // Convert row to config object
+    const updatedConfig = {
+      id: updatedRow.id,
+      domain: updatedRow.domain,
+      site_domain: updatedRow.site_domain,
       title: updatedRow.title || '',
       description: updatedRow.description || '',
-      nav_links: finalNavLinks,
-      lottie_animation: updatedRow.lottie_animation || null,
-      // example for about_description
-      about_description: updatedRow.about_description || null,
-      // about_sections, etc.
+      nav_links: JSON.parse(updatedRow.nav_links || '{}'),
+      lottie_animation: updatedRow.lottie_animation || '',
+      lottie_animation_r2_key: updatedRow.lottie_animation_r2_key,
+      about_description: updatedRow.about_description || '',
+      about_sections: [],
+      pics_description: updatedRow.pics_description || '',
+      contact_description: updatedRow.contact_description || '',
+      contact_email: updatedRow.contact_email || '',
+      contact_discord_handle: updatedRow.contact_discord_handle || '',
+      contact_discord_url: updatedRow.contact_discord_url || '',
+      contact_instagram_url: updatedRow.contact_instagram_url || '',
+      contact_instagram_handle: updatedRow.contact_instagram_handle || '',
+      web3forms_key: updatedRow.web3forms_key || '',
+      show_email: Boolean(updatedRow.contact_email_visible),
+      show_discord: Boolean(updatedRow.contact_discord_visible),
+      show_instagram: Boolean(updatedRow.contact_instagram_visible),
+      scale_factor: 100  // Initialize with default value
+    } as SiteConfig;
 
-      // You must also explicitly include ALL fields you want:
-      contact_description: updatedRow.contact_description || null,
-      contact_email: updatedRow.contact_email || null,
-      contact_email_visible: Boolean(updatedRow.contact_email_visible),
-      contact_discord_handle: updatedRow.contact_discord_handle || null,
-      contact_discord_url: updatedRow.contact_discord_url || null,
-      contact_discord_visible: Boolean(updatedRow.contact_discord_visible),
-      contact_instagram_handle: updatedRow.contact_instagram_handle || null,
-      contact_instagram_url: updatedRow.contact_instagram_url || null,
-      contact_instagram_visible: Boolean(updatedRow.contact_instagram_visible),
-      pics_description: updatedRow.pics_description || null,
+    // Get the current animation scale from the animations table
+    const animationRow = await env.DB.prepare(
+      'SELECT scale_factor FROM animations WHERE domain = ? AND name = ?'
+    ).bind(domain, updatedRow.lottie_animation).first();
+    
+    if (animationRow && 'scale_factor' in animationRow) {
+      updatedConfig.scale_factor = (animationRow.scale_factor as number) || 100;
+    }
 
-      about_sections: finalHeaders.map((header, i) => ({
-        title: header.title,
-        visible: Boolean(header.visible),
-        content: finalContents[i]?.text ?? ''
-      }))
-    };
+    // Broadcast update to connected clients
+    await broadcastSiteUpdate(env, domain, updatedConfig);
 
-    // Broadcast to the DO
+    return Response.json({ config: updatedConfig }) as unknown as CFResponse;
+  } catch (error) {
+    console.error('Error updating site config:', error);
+    return Response.json({ 
+      error: 'Failed to update site config',
+      details: error instanceof Error ? error.message : String(error)
+    }, { status: 500 }) as unknown as CFResponse;
+  }
+}
+
+export async function updateAnimationScale(request: CFRequest, env: Env): Promise<CFResponse> {
+  try {
+    const domain = request.headers.get('X-Site-Domain');
+    if (!domain) {
+      return Response.json({ error: 'Missing X-Site-Domain header' }, { status: 400 }) as unknown as CFResponse;
+    }
+
+    const { scale_factor } = await request.json() as { scale_factor: number };
+    if (typeof scale_factor !== 'number' || scale_factor < 100 || scale_factor > 500) {
+      return Response.json({ error: 'Invalid scale factor. Must be between 100 and 500.' }, { status: 400 }) as unknown as CFResponse;
+    }
+
+    // Update only the animations table
+    const stmt = env.DB.prepare(
+      'UPDATE animations SET scale_factor = ? WHERE domain = ? AND name = (SELECT lottie_animation FROM site_config WHERE domain = ?)'
+    ).bind(scale_factor, domain, domain);
+    
+    await stmt.run();
+
+    // Broadcast just the scale update
     const doId = env.WEBSOCKET_HANDLER.idFromName('default');
     const doStub = env.WEBSOCKET_HANDLER.get(doId);
-
-    await doStub.fetch(`https://internal/broadcast`, {
+    const broadcastResponse = await doStub.fetch('https://internal/broadcast', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-Site-Domain': domain
+      },
       body: JSON.stringify({
-        type: 'SITE_CONFIG_UPDATE',
-        data: finalConfig
+        type: 'ANIMATION_SCALE_UPDATE',
+        data: { scale_factor },
+        domain: domain
       })
     });
 
-    return new Response(JSON.stringify({
-      success: true,
-      config: finalConfig
-    }), {
-      headers: { 'Content-Type': 'application/json' }
+    if (!broadcastResponse.ok) {
+      console.warn('⚠️ WebSocket broadcast failed:', await broadcastResponse.text());
+    }
+
+    return Response.json({ 
+      success: true, 
+      scale_factor 
+    }) as unknown as CFResponse;
+  } catch (err) {
+    console.error('Error updating animation scale:', err);
+    return Response.json({ 
+      error: 'Failed to update animation scale',
+      details: err instanceof Error ? err.message : String(err)
+    }, { status: 500 }) as unknown as CFResponse;
+  }
+}
+
+export async function updateBasicInfo(request: CFRequest, env: Env): Promise<CFResponse> {
+  try {
+    const domain = request.headers.get('X-Site-Domain');
+    if (!domain) {
+      return Response.json({ error: 'Missing X-Site-Domain header' }, { status: 400 }) as unknown as CFResponse;
+    }
+
+    const { title, description } = await request.json() as { title: string; description: string };
+    
+    // Update just the title and description
+    const stmt = env.DB.prepare(
+      'UPDATE site_config SET title = ?, description = ? WHERE domain = ?'
+    ).bind(title, description, domain);
+    
+    await stmt.run();
+
+    // Get the updated fields to broadcast
+    const updatedRow = await env.DB.prepare(
+      'SELECT title, description FROM site_config WHERE domain = ?'
+    ).bind(domain).first();
+
+    if (!updatedRow) {
+      return Response.json({ error: 'Failed to retrieve updated config' }, { status: 500 }) as unknown as CFResponse;
+    }
+
+    // Broadcast just the basic info update
+    const doId = env.WEBSOCKET_HANDLER.idFromName('default');
+    const doStub = env.WEBSOCKET_HANDLER.get(doId);
+    const broadcastResponse = await doStub.fetch('https://internal/broadcast', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-Site-Domain': domain
+      },
+      body: JSON.stringify({
+        type: 'BASIC_INFO_UPDATE',
+        data: {
+          title: updatedRow.title || '',
+          description: updatedRow.description || ''
+        },
+        domain
+      })
     });
 
-  } catch (error) {
-    console.error('❌ Failed to update site config:', error);
-    return new Response(JSON.stringify({ 
-      error: 'Failed to update site config',
-      details: error instanceof Error ? error.message : String(error)
-    }), { 
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    if (!broadcastResponse.ok) {
+      console.warn('⚠️ WebSocket broadcast failed:', await broadcastResponse.text());
+    }
+
+    return Response.json({ 
+      success: true,
+      title: updatedRow.title || '',
+      description: updatedRow.description || ''
+    }) as unknown as CFResponse;
+  } catch (err) {
+    console.error('Error updating basic info:', err);
+    return Response.json({ 
+      error: 'Failed to update basic info',
+      details: err instanceof Error ? err.message : String(err)
+    }, { status: 500 }) as unknown as CFResponse;
   }
 }
 

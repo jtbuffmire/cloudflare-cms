@@ -1,67 +1,149 @@
+import { API_BASE } from './config';
 import { browser } from '$app/environment';
 
-const WS_URL = import.meta.env.VITE_WS_URL;
+// Convert API URL to WebSocket URL
+const wsBase = API_BASE.replace('http://', 'ws://').replace('https://', 'wss://');
+const WS_URL = `${wsBase}/ws`;
+
+// Message types for WebSocket communication
+export interface WebSocketMessage {
+  type: string;
+  data: any;
+  domain?: string;
+}
 
 export class WebSocketClient {
   private ws: WebSocket | null = null;
-  private reconnectTimeout: number = 1000;
-  private subscribers: Map<string, Array<(data: any) => void>> = new Map();
-  
-  constructor(private url: string = WS_URL) {
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private reconnectDelay = 1000;
+  private pingInterval: ReturnType<typeof setInterval> | null = null;
+  private connectionTimeout: ReturnType<typeof setTimeout> | null = null;
+  public onMessage: ((message: WebSocketMessage) => void) | null = null;
+
+  constructor() {
     if (browser) {
-      this.connect();
+      this.setupPing();
     }
   }
 
-  private connect() {
-    this.ws = new WebSocket(this.url);
+  public connect(): void {
+    if (!browser) return;
 
-    this.ws.addEventListener('open', () => {
-        console.log('✅ WebSocket connected');
-      this.reconnectTimeout = 1000;
-    });
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      console.log('🔌 WebSocket already connected');
+      return;
+    }
 
-    this.ws.addEventListener('message', (event) => {
-      try {
-        const message = JSON.parse(event.data);        
-        const handlers = this.subscribers.get(message.type) || [];
-        handlers.forEach(handler => handler(message.data));
-      } catch (err) {
-        console.error('❌ Failed to parse WebSocket message:', err);
+    const hostname = window.location.hostname;
+    // For production admin panel (admin.buffmire.com), use main domain (buffmire.com)
+    const domain = hostname.startsWith('admin.') ? hostname.replace('admin.', '') : hostname;
+    
+    const url = new URL(WS_URL);
+    url.searchParams.set('domain', domain);
+    url.searchParams.set('site', hostname);
+
+    this.ws = new WebSocket(url.toString());
+
+    this.ws.addEventListener('open', this.handleOpen.bind(this));
+    this.ws.addEventListener('message', this.handleMessage.bind(this));
+    this.ws.addEventListener('close', this.handleClose.bind(this));
+    this.ws.addEventListener('error', this.handleError.bind(this));
+
+    // Set connection timeout
+    this.connectionTimeout = setTimeout(() => {
+      if (this.ws?.readyState !== WebSocket.OPEN) {
+        console.log('⏰ WebSocket connection timeout');
+        this.ws?.close();
       }
-    });
-
-    this.ws.addEventListener('close', () => {
-      console.log('🔌 WebSocket disconnected, reconnecting...');
-      setTimeout(() => {
-        this.reconnectTimeout = Math.min(this.reconnectTimeout * 2, 30000);
-        this.connect();
-      }, this.reconnectTimeout);
-    });
-
-    this.ws.addEventListener('error', (error) => {
-      console.error('❌ WebSocket error:', error);
-    });
+    }, 5000);
   }
 
-  public subscribe(type: string, handler: (data: any) => void) {
-    if (!this.subscribers.has(type)) {
-      this.subscribers.set(type, []);
+  private handleOpen(): void {
+    console.log('🔌 WebSocket connected');
+    this.reconnectAttempts = 0;
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+      this.connectionTimeout = null;
     }
-    this.subscribers.get(type)?.push(handler);
-    return () => this.unsubscribe(type, handler);
   }
 
-  private unsubscribe(type: string, handler: (data: any) => void) {
-    const handlers = this.subscribers.get(type) || [];
-    this.subscribers.set(type, handlers.filter(h => h !== handler));
+  private handleMessage(event: MessageEvent): void {
+    try {
+      const message = JSON.parse(event.data) as WebSocketMessage;
+      // console.log('📨 Received message:', message);
+      if (this.onMessage) {
+        this.onMessage(message);
+      }
+    } catch (error) {
+      console.error('❌ Error parsing WebSocket message:', error);
+    }
   }
 
-  public close() {
+  private handleClose(event: CloseEvent): void {
+    console.log('🔌 WebSocket closed:', event.code, event.reason);
+    this.cleanup();
+    this.reconnect();
+  }
+
+  private handleError(event: Event): void {
+    console.error('❌ WebSocket error:', event);
+    this.cleanup();
+    this.reconnect();
+  }
+
+  private reconnect(): void {
+    if (!browser) return;
+
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.log('⚠️ Max reconnection attempts reached');
+      return;
+    }
+
+    this.reconnectAttempts++;
+    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+    console.log(`🔄 Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
+
+    setTimeout(() => {
+      this.connect();
+    }, delay);
+  }
+
+  private cleanup(): void {
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+      this.connectionTimeout = null;
+    }
     if (this.ws) {
-      this.ws.close();
+      this.ws.removeEventListener('open', this.handleOpen.bind(this));
+      this.ws.removeEventListener('message', this.handleMessage.bind(this));
+      this.ws.removeEventListener('close', this.handleClose.bind(this));
+      this.ws.removeEventListener('error', this.handleError.bind(this));
+      this.ws = null;
+    }
+  }
+
+  private setupPing(): void {
+    if (!browser) return;
+
+    // Send ping every 30 seconds to keep connection alive
+    this.pingInterval = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'PING' }));
+      }
+    }, 30000);
+  }
+
+  public send(data: any): void {
+    if (!browser) return;
+
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(data));
+    } else {
+      console.warn('⚠️ WebSocket not connected, cannot send message');
     }
   }
 }
 
-export const wsClient = new WebSocketClient();
+// Export singleton instance
+export const websocket = new WebSocketClient(); 
