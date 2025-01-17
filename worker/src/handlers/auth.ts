@@ -1,108 +1,70 @@
 import { sign } from '@tsndr/cloudflare-worker-jwt';
-import type { Request as CFRequest, Response as CFResponse } from '@cloudflare/workers-types';
-import type { Env } from '../types';
-import { json } from '../utils';
-import { API_URL, API_VSN } from '../lib/api';
+import type { RouteHandler } from '../types';
+import type { Response as CFResponse } from '@cloudflare/workers-types';
 
-export async function login(request: CFRequest, env: Env): Promise<CFResponse> {
-  const { email, password, domain } = await request.json() as { 
-    email: string; 
-    password: string; 
-    domain: string; 
-  };
-
-  console.log('🔐 Login attempt:', { email, domain });
-  console.log('🔑 Environment check:', { 
-    hasAdminEmail: !!env.ADMIN_EMAIL,
-    hasAdminPassword: !!env.ADMIN_PASSWORD,
-    hasJwtSecret: !!env.JWT_SECRET,
-    adminEmail: env.ADMIN_EMAIL
-  });
-
-  // Check env vars first for admin access
-  if (email === env.ADMIN_EMAIL && password === env.ADMIN_PASSWORD) {
-    console.log('✅ Admin credentials verified');
-    const token = await sign({
-      sub: 'admin',
-      email: email,
-      domain: domain,
-      exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours
-    }, env.JWT_SECRET);
-
-    return json({ token });
-  }
-
-  console.log('❌ Admin credentials did not match');
-
-  // Get user for this domain
-  const user = await env.DB.prepare(`
-    SELECT * FROM users 
-    WHERE email = ? AND domain = ?
-    LIMIT 1
-  `).bind(email, domain).first();
-
-  if (!user) {
-    return new Response(JSON.stringify({ 
-      error: 'Invalid credentials' 
-    }), { 
-      status: 401,
-      headers: { 'Content-Type': 'application/json' }
-    }) as unknown as CFResponse;
-  }
-
-  // Verify password (you should use proper password hashing in production)
-  if (password !== user.password) {
-    return new Response(JSON.stringify({ 
-      error: 'Invalid credentials' 
-    }), { 
-      status: 401,
-      headers: { 'Content-Type': 'application/json' }
-    }) as unknown as CFResponse;
-  }
-
-  // Generate JWT with domain claim
-  const payload = {
-    sub: user.id as string,
-    email: user.email as string,
-    domain: domain,
-    exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24) // 24 hours
-  };
-
-  const token = await sign(payload, env.JWT_SECRET);
-
-  return json({ 
-    token,
-    user: {
-      id: user.id,
-      email: user.email
-    }
-  });
-}
-
-// Client-side login helper
-export async function handleClientLogin(username: string, password: string) {
-    const response = await fetch(`${API_URL}${API_VSN}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+export const login: RouteHandler = async (request, env) => {
+  try {
+    // Log incoming request details
+    console.log('Login attempt with headers:', {
+      auth: request.headers.get('Authorization'),
+      domain: request.headers.get('X-Site-Domain'),
+      contentType: request.headers.get('Content-Type')
     });
 
-    if (!response.ok) {
-        throw new Error('Login failed');
+    // Get auth header
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Basic ')) {
+      return new Response(JSON.stringify({ error: 'Invalid credentials format' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      }) as unknown as CFResponse;
     }
 
-    const data = await response.json() as { token: string };
-    localStorage.setItem('token', data.token);
-    return data;
-}
+    // Decode base64 credentials
+    const base64Credentials = authHeader.split(' ')[1];
+    const credentials = atob(base64Credentials);
+    const [email, password] = credentials.split(':');
 
-// Make sure token is being included in requests
-export function getAuthHeaders() {
-    const token = localStorage.getItem('token');
-    return token ? {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-    } : {
-        'Content-Type': 'application/json'
-    };
-}
+    console.log('Login attempt:', { 
+      email,
+      domain: request.headers.get('X-Site-Domain'),
+      validEmail: env.ADMIN_EMAIL.includes(email)
+    });
+
+    // Verify against env variables
+    const adminEmails = env.ADMIN_EMAIL.split(',');
+    const adminPasswords = env.ADMIN_PASSWORD.split(',');
+    const isValid = adminEmails.some((adminEmail, index) => 
+      email === adminEmail.trim() && password === adminPasswords[index].trim()
+    );
+
+    if (!isValid) {
+      return new Response(JSON.stringify({ error: 'Invalid credentials' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      }) as unknown as CFResponse;
+    }
+
+    // Generate JWT token
+    const token = await sign(
+      { 
+        email,
+        exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24) // 24 hours
+      }, 
+      env.JWT_SECRET
+    );
+
+    return new Response(JSON.stringify({ token }), {
+      headers: { 'Content-Type': 'application/json' }
+    }) as unknown as CFResponse;
+  } catch (err) {
+    console.error('Login handler error:', err);
+    return new Response(JSON.stringify({ 
+      error: 'Internal server error', 
+      details: err.message 
+    }), { 
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    }) as unknown as CFResponse;
+  }
+};

@@ -61,18 +61,21 @@ export const corsMiddleware = async (
   // Check if the request origin is allowed
   const isAllowedOrigin = requestOrigin && (
     allowedOrigins.includes(requestOrigin) ||
-    requestOrigin.endsWith('.pages.dev') ||  // Allow all Cloudflare Pages domains
+    requestOrigin.endsWith('.pages.dev') ||  // Allow Cloudflare Pages domains
+    requestOrigin.endsWith('.buffmire.com') || // Allow all subdomains
+    requestOrigin.endsWith('.amealzonwheels.com') || // Allow all subdomains
+    requestOrigin.endsWith('.signalset.com') || // Allow all subdomains
     (getRootDomain(requestOrigin) === getRootDomain(request.url)) || // Allow same root domain
-    env.ENVIRONMENT === 'development'         // In dev, be more permissive
+    env.ENVIRONMENT === 'development'
   );
 
   // Common headers for all responses
   const corsHeaders = {
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Site-Domain, x-domain, Upgrade, Connection, Sec-WebSocket-Key, Sec-WebSocket-Version',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Site-Domain, x-domain',
     'Access-Control-Max-Age': '86400',
-    'Access-Control-Allow-Origin': isAllowedOrigin ? requestOrigin! : ''
+    'Access-Control-Allow-Origin': isAllowedOrigin ? requestOrigin! : '*'
   };
 
   // Handle preflight requests

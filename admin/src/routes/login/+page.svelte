@@ -20,25 +20,29 @@
 
   async function handleSubmit() {
     try {
+      // Create base64 encoded credentials
+      const credentials = btoa(`${email}:${password}`);
+      
       const response = await fetch(`${API_BASE}${API_VSN}/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Site-Domain': DOMAIN
+          'X-Site-Domain': DOMAIN,
+          'Authorization': `Basic ${credentials}`
         },
-        body: JSON.stringify({
-          email,
-          password,
-          domain: DOMAIN
-        })
+        body: JSON.stringify({ domain: DOMAIN }) // Only send domain, not credentials
       });
 
+      console.log('Response status:', response.status);
       if (!response.ok) {
         const errorText = await response.text();
+        console.error('Response error:', errorText);
         throw new Error(errorText);
       }
 
       const data = await response.json() as LoginResponse;
+      console.log('Response data:', data);
+      
       if (!data.token) {
         throw new Error('No token received');
       }
