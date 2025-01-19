@@ -73,7 +73,7 @@ export const corsMiddleware = async (
   const corsHeaders = {
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Site-Domain, x-domain',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Site-Domain, Upgrade, Connection',
     'Access-Control-Max-Age': '86400',
     'Access-Control-Allow-Origin': isAllowedOrigin ? requestOrigin! : '*'
   };

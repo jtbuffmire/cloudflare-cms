@@ -54,6 +54,19 @@
 	$: if (data.pics) pics.set(data.pics);
 	$: if (data.animations) animations.set(data.animations);
 
+	// Add a check to ensure lottie_animation is set to 'default' if empty
+	$: if ($siteConfig && !$siteConfig.lottie_animation) {
+		siteConfig.update(config => ({
+			...config,
+			lottie_animation: 'default'
+		}));
+	}
+
+	// Add a check to ensure the default animation is in the animations store
+	$: if ($animations && $siteConfig?.lottie_animation === 'default' && !$animations.find(a => a.name === 'default')) {
+		console.warn('Default animation not found in animations store');
+	}
+
 	// Static array for transitions
 	const pages = [
 	//	{ name: 'projects', path: '/projects' },

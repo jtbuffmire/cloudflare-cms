@@ -7,6 +7,7 @@
   import { API_BASE, API_VSN, getRequestInit, getDefaultHeaders, getDomain } from '$lib/config';
   import { Button, Table, TableBody, TableBodyCell, TableBodyRow, TableHead, TableHeadCell, Badge, Spinner, Toggle } from 'flowbite-svelte';
   import { page } from '$app/stores';
+  import { browser } from '$app/environment';
   import Icon from '@iconify/svelte';
 
   // Get domain and token from URL params or defaults
@@ -66,7 +67,13 @@
   async function loadPosts() {
     try {
       loading = true;
-      const response = await fetch(`${API_BASE}${API_VSN}/posts`, getRequestInit());
+      const response = await fetch(`${API_BASE}${API_VSN}/posts`, {
+        ...getRequestInit(),
+        headers: {
+          ...getDefaultHeaders(),
+          'X-Site-Domain': domain
+        }
+      });
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -87,9 +94,21 @@
     if (!confirm('Are you sure you want to delete this post?')) return;
     
     try {
+      // Get token from localStorage if not in URL
+      const token = urlToken || localStorage.getItem('token');
+      
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
       const response = await fetch(`${API_BASE}${API_VSN}/posts/${id}`, {
         method: 'DELETE',
-        ...getRequestInit()
+        headers: {
+          ...getDefaultHeaders(),
+          'X-Site-Domain': domain,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
       
       if (!response.ok) {
@@ -109,12 +128,15 @@
     try {
       const response = await fetch(`${API_BASE}${API_VSN}/posts/${post.id}`, {
         method: 'PUT',
-        ...getRequestInit({
-          body: JSON.stringify({
-            ...post,
-            published: !post.published,
-            domain: domain
-          })
+        ...getRequestInit(),
+        headers: {
+          ...getDefaultHeaders(),
+          'X-Site-Domain': domain
+        },
+        body: JSON.stringify({
+          ...post,
+          published: !post.published,
+          domain
         })
       });
       
@@ -132,8 +154,45 @@
     }
   }
 
+  // Add function to handle unauthorized access
+  function handleUnauthorized() {
+    localStorage.removeItem('token');
+    window.location.href = '/login';
+  }
+
+  // Add function to check if we're on admin subdomain
+  function isAdminSubdomain(): boolean {
+    if (!browser) return false;
+    return window.location.hostname.startsWith('admin.');
+  }
+
   onMount(() => {
-    loadPosts();
+    if (isAdminSubdomain()) {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        handleUnauthorized();
+        return;
+      }
+
+      // Verify token first
+      fetch(`${API_BASE}${API_VSN}/verify`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Site-Domain': domain
+        }
+      }).then(response => {
+        if (!response.ok) {
+          handleUnauthorized();
+          return;
+        }
+        loadPosts();
+      }).catch(() => {
+        handleUnauthorized();
+      });
+    } else {
+      // Not on admin subdomain, just load posts
+      loadPosts();
+    }
   });
 </script>
 

@@ -11,6 +11,7 @@
   import { marked } from 'marked';
   import PicSelector from '$lib/components/PicSelector.svelte';
   import 'iconify-icon';
+  import { browser } from '$app/environment';
 
   // Get domain and token from URL params or defaults
   const urlDomain = $page.url.searchParams.get('domain');
@@ -29,6 +30,8 @@
     return init;
   };
 
+  let isLoading = true;
+  let isAuthenticated = false;
   let post: Post = {
     id: '',
     title: '',
@@ -48,7 +51,6 @@
     },
     domain
   };
-  let loading = true;
   let error: string | null = null;
   let isSaving = false;
   let showPicSelector = false;
@@ -83,7 +85,6 @@
   }
 
   async function loadPost() {
-    loading = true;
     error = null;
     try {
       const response = await fetch(`${API_BASE}${API_VSN}/posts/${$page.params.id}`, getPageRequestInit());
@@ -102,8 +103,6 @@
     } catch (err) {
       console.error('Error loading post:', err);
       error = 'Failed to load post';
-    } finally {
-      loading = false;
     }
   }
 
@@ -184,158 +183,200 @@
     }
   }
 
-  onMount(() => {
-    loadPost();
+  function handleUnauthorized() {
+    localStorage.removeItem('token');
+    window.location.href = '/login';
+  }
+
+  function isAdminSubdomain(): boolean {
+    if (!browser) return false;
+    return window.location.hostname.startsWith('admin.');
+  }
+
+  onMount(async () => {
+    if (isAdminSubdomain()) {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        handleUnauthorized();
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}${API_VSN}/verify`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'X-Site-Domain': domain
+          }
+        });
+        
+        if (!response.ok) {
+          handleUnauthorized();
+          return;
+        }
+        
+        isAuthenticated = true;
+        await loadPost();
+      } catch {
+        handleUnauthorized();
+      }
+    } else {
+      isAuthenticated = true;
+      await loadPost();
+    }
+    
+    isLoading = false;
   });
 </script>
 
-<div class="max-w-[95%] mx-auto px-4 py-8">
-  <div class="flex justify-between items-center mb-8">
-    <h1 class="text-3xl font-bold text-white">Edit Post</h1>
-    <div class="flex gap-2">
-      <Button href="/posts" color="dark">Back to Posts</Button>
-      <Button color="blue" on:click={() => showPicSelector = !showPicSelector}>
-        <iconify-icon icon="mdi:image" class="mr-2"></iconify-icon>
-        Insert Image
-      </Button>
-      <Button color="blue" on:click={() => showIconSelector = !showIconSelector}>
-        <iconify-icon icon="mdi:emoticon" class="mr-2"></iconify-icon>
-        Add Icon
-      </Button>
-      <Button color="blue" on:click={togglePreview}>
-        <iconify-icon icon={showPreview ? "mdi:pencil" : "mdi:eye"} class="mr-2"></iconify-icon>
-        {showPreview ? 'Edit' : 'Preview'}
-      </Button>
-    </div>
+{#if isLoading}
+  <div class="min-h-screen bg-gray-900 flex items-center justify-center">
+    <Spinner size="12" />
   </div>
+{:else if isAuthenticated}
+  <div class="max-w-[95%] mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-8">
+      <h1 class="text-3xl font-bold text-white">Edit Post</h1>
+      <div class="flex gap-2">
+        <Button href="/posts" color="dark">Back to Posts</Button>
+        <Button color="blue" on:click={() => showPicSelector = !showPicSelector}>
+          <iconify-icon icon="mdi:image" class="mr-2"></iconify-icon>
+          Insert Image
+        </Button>
+        <Button color="blue" on:click={() => showIconSelector = !showIconSelector}>
+          <iconify-icon icon="mdi:emoticon" class="mr-2"></iconify-icon>
+          Add Icon
+        </Button>
+        <Button color="blue" on:click={togglePreview}>
+          <iconify-icon icon={showPreview ? "mdi:pencil" : "mdi:eye"} class="mr-2"></iconify-icon>
+          {showPreview ? 'Edit' : 'Preview'}
+        </Button>
+      </div>
+    </div>
 
-  {#if loading}
-    <div class="flex justify-center items-center py-12">
-      <Spinner size="12" />
-    </div>
-  {:else if error}
-    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-      <p>{error}</p>
-      <Button color="red" size="xs" on:click={loadPost}>Retry</Button>
-    </div>
-  {:else}
-    <Card class="bg-gray-800 !max-w-none w-full">
-      <form on:submit|preventDefault={handleSubmit} class="space-y-6">
-        <div class="grid grid-cols-2 gap-6">
-          <div>
-            <Label for="title" class="mb-2 text-lg font-medium text-gray-100">Title</Label>
-            <div class="flex items-center gap-4">
-              {#if post.metadata?.icon}
-                <div class="flex items-center gap-2">
-                  <iconify-icon icon={post.metadata.icon} class="text-2xl text-gray-400"></iconify-icon>
-                </div>
-              {/if}
+    {#if error}
+      <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+        <p>{error}</p>
+        <Button color="red" size="xs" on:click={loadPost}>Retry</Button>
+      </div>
+    {:else}
+      <Card class="bg-gray-800 !max-w-none w-full">
+        <form on:submit|preventDefault={handleSubmit} class="space-y-6">
+          <div class="grid grid-cols-2 gap-6">
+            <div>
+              <Label for="title" class="mb-2 text-lg font-medium text-gray-100">Title</Label>
+              <div class="flex items-center gap-4">
+                {#if post.metadata?.icon}
+                  <div class="flex items-center gap-2">
+                    <iconify-icon icon={post.metadata.icon} class="text-2xl text-gray-400"></iconify-icon>
+                  </div>
+                {/if}
+                <Input
+                  id="title"
+                  type="text"
+                  bind:value={post.title}
+                  placeholder="Post title"
+                  required
+                  class="w-full"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label for="slug" class="mb-2 text-lg font-medium text-gray-100">Slug</Label>
               <Input
-                id="title"
+                id="slug"
                 type="text"
-                bind:value={post.title}
-                placeholder="Post title"
+                bind:value={post.slug}
+                placeholder="post-slug"
+                on:input={validateSlug}
                 required
                 class="w-full"
               />
+              <p class="mt-1 text-sm text-gray-400">URL-friendly version of the title</p>
             </div>
           </div>
 
-          <div>
-            <Label for="slug" class="mb-2 text-lg font-medium text-gray-100">Slug</Label>
-            <Input
-              id="slug"
-              type="text"
-              bind:value={post.slug}
-              placeholder="post-slug"
-              on:input={validateSlug}
-              required
-              class="w-full"
-            />
-            <p class="mt-1 text-sm text-gray-400">URL-friendly version of the title</p>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-6">
-          <div>
-            <Label for="description" class="mb-2 text-lg font-medium text-gray-100">Description</Label>
-            <Textarea
-              id="description"
-              bind:value={post.metadata!.description}
-              placeholder="Brief description of the post..."
-              class="h-24 w-full"
-            />
-          </div>
-
-          <div>
-            <Label class="mb-2 text-lg font-medium text-gray-100">Post Icon</Label>
-            <div class="flex items-center gap-2">
-              {#if post.metadata?.icon}
-                <div class="flex items-center gap-2">
-                  <iconify-icon icon={post.metadata.icon} class="text-2xl text-gray-400"></iconify-icon>
-                </div>
-              {/if}
-              <Button color="dark" on:click={() => showIconSelector = !showIconSelector}>
-                Change Icon
-              </Button>
+          <div class="grid grid-cols-2 gap-6">
+            <div>
+              <Label for="description" class="mb-2 text-lg font-medium text-gray-100">Description</Label>
+              <Textarea
+                id="description"
+                bind:value={post.metadata!.description}
+                placeholder="Brief description of the post..."
+                class="h-24 w-full"
+              />
             </div>
-          </div>
-        </div>
 
-        {#if showPicSelector}
-          <div class="w-full">
-            <PicSelector onSelect={handleImageSelect} />
-          </div>
-        {/if}
-
-        {#if showIconSelector}
-          <IconSelector on:select={handleIconSelect} />
-        {/if}
-
-        <div>
-          <Label for="content" class="mb-2 text-lg font-medium text-gray-100">Content</Label>
-          {#if showPreview}
-            <div class="prose prose-invert max-w-none bg-gray-900 p-6 rounded-lg">
-              <div class="flex items-center gap-3 mb-4">
-                <iconify-icon icon={post.metadata?.icon || 'mdi:file-document'} class="text-3xl"></iconify-icon>
-                <h1 class="m-0">{post.title}</h1>
+            <div>
+              <Label class="mb-2 text-lg font-medium text-gray-100">Post Icon</Label>
+              <div class="flex items-center gap-2">
+                {#if post.metadata?.icon}
+                  <div class="flex items-center gap-2">
+                    <iconify-icon icon={post.metadata.icon} class="text-2xl text-gray-400"></iconify-icon>
+                  </div>
+                {/if}
+                <Button color="dark" on:click={() => showIconSelector = !showIconSelector}>
+                  Change Icon
+                </Button>
               </div>
-              {@html previewHtml}
             </div>
-          {:else}
-            <Textarea
-              id="content"
-              name="markdown_content"
-              class="h-96 font-mono w-full resize p-4 bg-gray-900 border-gray-600 text-white rounded-lg min-h-[16rem]"
-              bind:value={post.markdown_content}
-              placeholder="Write your post content here using Markdown..."
-              required
-            />
+          </div>
+
+          {#if showPicSelector}
+            <div class="w-full">
+              <PicSelector onSelect={handleImageSelect} />
+            </div>
           {/if}
-        </div>
 
-        <div class="flex items-center gap-2">
-          <Checkbox
-            id="published"
-            bind:checked={post.published}
-          />
-          <Label for="published" class="text-lg font-medium text-gray-100">Published</Label>
-        </div>
+          {#if showIconSelector}
+            <IconSelector on:select={handleIconSelect} />
+          {/if}
 
-        <div class="flex justify-end gap-2">
-          <Button type="submit" color="blue" disabled={isSaving}>
-            {#if isSaving}
-              <Spinner class="mr-2" size="4" />
-              Saving...
+          <div>
+            <Label for="content" class="mb-2 text-lg font-medium text-gray-100">Content</Label>
+            {#if showPreview}
+              <div class="prose prose-invert max-w-none bg-gray-900 p-6 rounded-lg">
+                <div class="flex items-center gap-3 mb-4">
+                  <iconify-icon icon={post.metadata?.icon || 'mdi:file-document'} class="text-3xl"></iconify-icon>
+                  <h1 class="m-0">{post.title}</h1>
+                </div>
+                {@html previewHtml}
+              </div>
             {:else}
-              Save Changes
+              <Textarea
+                id="content"
+                name="markdown_content"
+                class="h-96 font-mono w-full resize p-4 bg-gray-900 border-gray-600 text-white rounded-lg min-h-[16rem]"
+                bind:value={post.markdown_content}
+                placeholder="Write your post content here using Markdown..."
+                required
+              />
             {/if}
-          </Button>
-        </div>
-      </form>
-    </Card>
-  {/if}
-</div> 
+          </div>
+
+          <div class="flex items-center gap-2">
+            <Checkbox
+              id="published"
+              bind:checked={post.published}
+            />
+            <Label for="published" class="text-lg font-medium text-gray-100">Published</Label>
+          </div>
+
+          <div class="flex justify-end gap-2">
+            <Button type="submit" color="blue" disabled={isSaving}>
+              {#if isSaving}
+                <Spinner class="mr-2" size="4" />
+                Saving...
+              {:else}
+                Save Changes
+              {/if}
+            </Button>
+          </div>
+        </form>
+      </Card>
+    {/if}
+  </div>
+{/if}
 
 <style>
   :global(iconify-icon) {

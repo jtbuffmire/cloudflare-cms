@@ -53,7 +53,7 @@ export class WebSocketClient {
     // Set connection timeout
     this.connectionTimeout = setTimeout(() => {
       if (this.ws?.readyState !== WebSocket.OPEN) {
-        console.log('⏰ WebSocket connection timeout');
+        // console.log('⏰ WebSocket connection timeout');
         this.ws?.close();
       }
     }, 5000);
@@ -81,7 +81,7 @@ export class WebSocketClient {
   }
 
   private handleClose(event: CloseEvent): void {
-    console.log('🔌 WebSocket closed:', event.code, event.reason);
+    // console.log('🔌 WebSocket closed:', event.code, event.reason);
     this.cleanup();
     this.reconnect();
   }

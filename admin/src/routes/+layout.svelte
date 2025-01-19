@@ -7,22 +7,28 @@
   import { storeManager } from '$lib/stores';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { browser } from '$app/environment';
+  import { browser, dev } from '$app/environment';
   import '../app.css';
   import 'iconify-icon';
 
   const DOMAIN = getDomain();
+  const publicRoutes = ['/', '/login', '/blog', '/pics', '/animations', '/projects', '/site', '/posts'];
   
-  // List of routes that don't require authentication
-  const publicRoutes = ['/login'];
-  
+  let isAdminDomain = false;
+  let mainDomain = `https://${DOMAIN}`;
   let isLoading = true;
   let isAuthenticated = false;
   let isNavigating = false;
 
+  // Format domain for display
+  const siteName = DOMAIN.split('.')[0]
+    .replace(/([A-Z])/g, ' $1')
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+
   async function verifyToken(token: string | null) {
     if (!token) return false;
-    
     try {
       const response = await fetch(`${API_BASE}${API_VSN}/verify`, {
         headers: {
@@ -30,7 +36,6 @@
           'X-Site-Domain': DOMAIN
         }
       });
-      
       return response.ok;
     } catch (err) {
       console.error('Token verification failed:', err);
@@ -41,19 +46,15 @@
   async function checkAuth() {
     if (!browser || isNavigating) return;
     
-    const token = localStorage.getItem('token');
+    const token = localStorage?.getItem('token');
     const isPublicRoute = publicRoutes.includes($page.url.pathname);
     
     isAuthenticated = await verifyToken(token);
     
     if (!isAuthenticated && !isPublicRoute) {
       isNavigating = true;
-      localStorage.removeItem('token'); // Clear invalid token
+      localStorage?.removeItem('token');
       await goto('/login');
-      isNavigating = false;
-    } else if (isAuthenticated && $page.url.pathname === '/login') {
-      isNavigating = true;
-      await goto('/');
       isNavigating = false;
     }
     
@@ -61,9 +62,21 @@
   }
 
   onMount(() => {
-    // Initialize store manager which sets up WebSocket connection
-    storeManager.init();
-    checkAuth();
+    // Check domain after component is mounted
+    if (dev) {
+      isAdminDomain = window.location.port === '5174';
+      mainDomain = 'http://localhost:5173';
+    } else {
+      isAdminDomain = window.location.hostname.startsWith('admin.');
+      mainDomain = `https://${DOMAIN}`;
+    }
+
+    if (isAdminDomain) {
+      storeManager.init();
+      checkAuth();
+    } else {
+      window.location.href = mainDomain;
+    }
   });
 
   // Watch route changes
@@ -75,11 +88,11 @@
   }
 </script>
 
-<svelte:head>
-  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
-</svelte:head>
-
-{#if isLoading}
+{#if !browser}
+  <div class="min-h-screen bg-gray-900 flex items-center justify-center">
+    <Spinner size="12" />
+  </div>
+{:else if isLoading}
   <div class="min-h-screen bg-gray-900 flex items-center justify-center">
     <Spinner size="12" />
   </div>
@@ -87,27 +100,29 @@
   <div class="min-h-screen bg-gray-900">
     <Navbar class="bg-gray-800 border-gray-700 px-4">
       <NavBrand href="/">
-        <span class="self-center text-xl font-semibold whitespace-nowrap text-white">Admin Panel</span>
+        <span class="self-center text-xl font-semibold whitespace-nowrap text-white">
+          {siteName} Admin
+        </span>
       </NavBrand>
       <NavHamburger />
       <NavUl>
         <NavLi>
-          <Button href="/" color="dark" class="mx-1">Dashboard</Button>
+          <Button href="/" color="dark" class="mx-1 text-lg px-6">Dashboard</Button>
         </NavLi>
         <NavLi>
-          <Button href="/posts" color="dark" class="mx-1">Posts</Button>
+          <Button href="/posts" color="dark" class="mx-1 text-lg px-6">Posts</Button>
         </NavLi>
         <NavLi>
-          <Button href="/pics" color="dark" class="mx-1">Pics</Button>
+          <Button href="/pics" color="dark" class="mx-1 text-lg px-6">Pics</Button>
         </NavLi>
         <NavLi>
-          <Button href="/animations" color="dark" class="mx-1">Animations</Button>
+          <Button href="/animations" color="dark" class="mx-1 text-lg px-6">Animations</Button>
         </NavLi>
         <NavLi>
-          <Button href="/projects" color="dark" class="mx-1 opacity-50" disabled>Projects</Button>
+          <Button href="/projects" color="dark" class="mx-1 text-lg px-6 opacity-50" disabled>Projects</Button>
         </NavLi>
         <NavLi>
-          <Button href="/site" color="dark" class="mx-1">Site Config</Button>
+          <Button href="/site" color="dark" class="mx-1 text-lg px-6">Site Config</Button>
         </NavLi>
         <NavLi>
           <LoginButton />

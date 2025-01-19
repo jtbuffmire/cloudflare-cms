@@ -64,18 +64,25 @@
 
   async function loadPics() {
     try {
-      const response = await fetch(`${API_BASE}${API_VSN}/pics`, getPicRequestInit());
-      if (!response.ok) throw new Error('Failed to load pics');
-      const data = await response.json() as PicFile[];
+      const response = await fetch(`${API_BASE}${API_VSN}/pics`, {
+        ...getRequestInit(),
+        headers: {
+          ...getRequestInit().headers,
+          'X-Site-Domain': domain
+        }
+      });
+      
+      if (!response.ok) throw new Error('Failed to load images');
+      
+      images = await response.json() as PicFile[];
       // Convert relative URLs to absolute URLs with auth params
-      images = data.map(image => ({
+      images = images.map(image => ({
         ...image,
         url: getAbsoluteUrl(image.url)
       }));
-      loading = false;
     } catch (err) {
-      console.error('Error loading pics:', err);
-      error = 'Failed to load pics';
+      error = err instanceof Error ? err.message : 'Failed to load images';
+    } finally {
       loading = false;
     }
   }

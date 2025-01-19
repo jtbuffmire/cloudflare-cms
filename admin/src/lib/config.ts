@@ -1,11 +1,9 @@
 // API Configuration
-export const API_VSN = '/api/v1';
+export const API_VSN = import.meta.env.VITE_API_VSN || '/api/v1';
 
+// Ensure consistent slashes between base and version
 export function getApiBase(): string {
     if (typeof window === 'undefined') return '';
-    if (import.meta.env.VITE_API_URL) {
-        return import.meta.env.VITE_API_URL;
-    }
     if (import.meta.env.DEV) {
         return 'http://localhost:8787';
     }
@@ -61,17 +59,14 @@ export const getDefaultHeaders = () => {
     return headers;
 };
 
-export function getRequestInit(options: RequestInit = {}): RequestInit {
+export function getRequestInit(): RequestInit {
     const token = localStorage.getItem('token');
-    const domain = getDomain();
-
     return {
-        ...options,
+        credentials: 'include',
         headers: {
-            ...options.headers,
-            'Authorization': token ? `Bearer ${token}` : '',
-            'X-Site-Domain': domain,
             'Content-Type': 'application/json',
-        },
+            'Authorization': token ? `Bearer ${token}` : '',
+            'X-Site-Domain': getDomain()
+        }
     };
 } 

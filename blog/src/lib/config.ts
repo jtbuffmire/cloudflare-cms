@@ -1,26 +1,33 @@
 // API Configuration
-export const API_VSN = '/api/v1';
+export const API_VSN = import.meta.env.VITE_API_VSN || '/api/v1';
 
+// Ensure consistent slashes between base and version
 export function getApiBase(): string {
     if (typeof window === 'undefined') return '';
-    if (import.meta.env.VITE_API_URL) {
-        // console.log('🔍 Using VITE_API_URL:', import.meta.env.VITE_API_URL);
-        return import.meta.env.VITE_API_URL;
-    }
     if (import.meta.env.DEV) {
-        console.log('🔍 Using DEV URL: http://localhost:8787');
         return 'http://localhost:8787';
     }
     const hostname = window.location.hostname;
-    const url = `https://api.${hostname.replace('www.', '')}`;
-    console.log('🔍 Using production URL:', url);
-    return url;
+    const domain = hostname.replace('www.', '');
+    return `https://api.${domain}`;
 }
 
 export const API_BASE = getApiBase();
-// console.log('🌐 Final API_BASE:', API_BASE);
-export const WS_URL = import.meta.env.VITE_WS_URL;
 export const API_TIMEOUT = 5000;
+
+// Debug logs after all declarations
+console.log('📦 All environment variables:', {
+    MODE: import.meta.env.MODE,
+    BASE_URL: import.meta.env.BASE_URL,
+    PROD: import.meta.env.PROD,
+    DEV: import.meta.env.DEV,
+    SSR: import.meta.env.SSR,
+    ALL_ENV: Object.fromEntries(Object.entries(import.meta.env)),
+    VITE_VARS: Object.fromEntries(
+        Object.entries(import.meta.env)
+            .filter(([key]) => key.startsWith('VITE_'))
+    )
+});
 
 // console.log('📝 Blog Configuration:', {
 //     API_BASE,
@@ -33,17 +40,13 @@ export const API_TIMEOUT = 5000;
 //     }
 // });
 
+export const WS_BASE = API_BASE.replace('http://', 'ws://').replace('https://', 'wss://');
+export const WS_URL = `${WS_BASE}/ws`;
+
 // Domain Configuration
 export const getDomain = () => {
-    if (typeof window === 'undefined') {
-        // During SSR, use a default domain for development
-        if (import.meta.env.DEV) {
-            return 'localhost';
-        }
-        return '';
-    }
+    if (typeof window === 'undefined') return '';
     const hostname = window.location.hostname;
-    // Always return just the hostname without port for consistency with backend
     return hostname.replace('www.', '');
 };
 
@@ -69,4 +72,19 @@ export const getRequestInit = (options: RequestInit = {}): RequestInit => {
     };
     // console.log('🔧 Request init configuration:', init);
     return init;
+};
+
+// Helper function to construct API URLs
+export const API_ENDPOINT = (path: string) => {
+    // Only log in development/preview
+    if (import.meta.env.DEV || import.meta.env.VITE_ENVIRONMENT === 'preview') {
+        console.log('🔍 API Request:', {
+            env: import.meta.env.VITE_ENVIRONMENT,
+            base: API_BASE,
+            version: API_VSN,
+            path,
+            url: `${API_BASE}${API_VSN}${path}`
+        });
+    }
+    return `${API_BASE}${API_VSN}${path}`;
 }; 

@@ -55,49 +55,47 @@ interface R2Object {
   size: number;
 }
 
-export async function getPics(
-  request: CFRequest,
-  env: Env,
-  ctx: ExecutionContext,
-  params: Record<string, string>
-): Promise<CFResponse> {
-  try {
-    const { results } = await env.DB.prepare(`
-      SELECT * FROM pics
-      ORDER BY created_at DESC
-    `).all<DBPicsFile>();
+export async function getPics(request: CFRequest, env: Env): Promise<CFResponse> {
+    try {
+        const domain = request.headers.get('X-Site-Domain');
+        if (!domain) {
+            return new Response('Missing domain header', { status: 400 }) as unknown as CFResponse;
+        }
 
-    // console.log('📤 Raw DB results:', results);
+        // Query includes domain filter
+        const { results } = await env.DB.prepare(
+            'SELECT * FROM pics WHERE domain = ?'
+        ).bind(domain).all<DBPicsFile>();
 
-    // Format the files before sending
-    const files = results.map((file: DBPicsFile) => ({
-      id: file.id,
-      name: file.filename,
-      url: `/pics/${file.r2_key}`,
-      type: file.mime_type,
-      size: file.size,
-      uploadedAt: file.created_at,
-      published: Boolean(file.published),
-      show_in_blog: Boolean(file.show_in_blog),
-      show_in_pics: Boolean(file.show_in_pics),
-      text_description: file.text_description,
-      text_description_visible: Boolean(file.text_description_visible)
-    }));
+        // Format the files before sending
+        const files = results.map((file: DBPicsFile) => ({
+            id: file.id,
+            name: file.filename,
+            url: `/pics/${file.r2_key}`,
+            type: file.mime_type,
+            size: file.size,
+            uploadedAt: file.created_at,
+            published: Boolean(file.published),
+            show_in_blog: Boolean(file.show_in_blog),
+            show_in_pics: Boolean(file.show_in_pics),
+            text_description: file.text_description,
+            text_description_visible: Boolean(file.text_description_visible)
+        }));
 
-    console.log('📤 Formatted files:', files);
+        console.log('📤 Formatted files:', files);
 
-    return new Response(JSON.stringify(files), {
-      headers: { 'Content-Type': 'application/json' }
-    }) as unknown as CFResponse;
-  } catch (error) {
-    return new Response(JSON.stringify({ 
-      error: 'Failed to get pics',
-      details: error instanceof Error ? error.message : String(error)
-    }), { 
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    }) as unknown as CFResponse;
-  }
+        return new Response(JSON.stringify(files), {
+            headers: { 'Content-Type': 'application/json' }
+        }) as unknown as CFResponse;
+    } catch (error) {
+        return new Response(JSON.stringify({ 
+            error: 'Failed to get pics',
+            details: error instanceof Error ? error.message : String(error)
+        }), { 
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        }) as unknown as CFResponse;
+    }
 }
 
 export async function uploadPics(

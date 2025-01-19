@@ -77,6 +77,53 @@
     }
   }
 
+  const STORAGE_KEY = 'site_config_draft';
+
+  function saveDraft() {
+    if (browser && localConfig) {
+      const draftData = {
+        ...localConfig,
+        about_sections: Array.isArray(localConfig.about_sections) 
+          ? localConfig.about_sections 
+          : []
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(draftData));
+      console.log('Saved draft about_sections:', draftData.about_sections);
+    }
+  }
+
+  function loadDraft(): boolean {
+    if (browser) {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          // Merge the draft with existing config, preserving all fields
+          localConfig = {
+            ...localConfig,  // Keep existing defaults
+            ...parsed,       // Apply saved changes
+            nav_links: {
+              ...localConfig.nav_links,
+              ...parsed.nav_links
+            },
+            scale_factor: parsed.scale_factor || localConfig.scale_factor || 100,
+            about_sections: parsed.about_sections || localConfig.about_sections || [],
+          };
+          return true;
+        } catch (e) {
+          console.error('Error loading draft:', e);
+        }
+      }
+    }
+    return false;
+  }
+
+  function clearDraft() {
+    if (browser) {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  }
+
   async function handleSubmit(event?: Event) {
     event?.preventDefault();
     loading = true;
@@ -91,9 +138,6 @@
         return;
       }
 
-      // Ensure scale factor is a number between 100-500
-      const scale = Math.max(100, Math.min(500, localConfig.scale_factor || 100));
-
       const response = await fetch(`${API_BASE}${API_VSN}/site/config`, {
         method: 'PUT',
         headers: {
@@ -101,41 +145,21 @@
           'Content-Type': 'application/json',
           'X-Site-Domain': DOMAIN
         },
-        body: JSON.stringify({
-          ...localConfig,
-          domain: DOMAIN,
-          scale_factor: scale
-        })
+        body: JSON.stringify(localConfig)
       });
 
       if (!response.ok) {
         throw new Error('Failed to update site configuration');
       }
 
-      const rawData = await response.json();
-      const data = rawData as { config: SiteConfig };
-      
-      if (data?.config) {
-        // Update both the store and local state
-        const updatedConfig = data.config;
-        siteConfig.set(updatedConfig);
-        localConfig = {
-          ...updatedConfig,
-          nav_links: updatedConfig.nav_links || {
-            projects: false,
-            blog: true,
-            pics: false,
-            about: true,
-            contact: true
-          },
-          scale_factor: updatedConfig.scale_factor || scale,
-          about_sections: Array.isArray(updatedConfig.about_sections) ? updatedConfig.about_sections : []
-        };
-      }
-      success = 'Site configuration updated successfully';
+      // Clear the draft after successful save
+      clearDraft();
+      success = 'Configuration updated successfully';
+      error = '';
     } catch (err) {
       console.error('Error updating site config:', err);
       error = err instanceof Error ? err.message : 'Failed to update site configuration';
+      success = '';
     } finally {
       loading = false;
       isLocalUpdate = false;  // Reset flag after update
@@ -391,7 +415,6 @@
       const response = await fetch(`${API_BASE}${API_VSN}/site/config`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
           'X-Site-Domain': DOMAIN
         }
       });
@@ -400,8 +423,10 @@
         throw new Error('Failed to fetch site configuration');
       }
 
-      const data = await response.json() as SiteConfig;
-      siteConfig.set(data);
+      const data = await response.json();
+      
+      // First initialize with database values
+      // Ensure about_sections is properly initialized from data
       localConfig = {
         ...data,
         nav_links: data.nav_links || {
@@ -411,8 +436,61 @@
           about: true,
           contact: true
         },
-        scale_factor: data.scale_factor || 100
+        scale_factor: data.scale_factor || 100,
+        about_sections: Array.isArray(data.about_sections) ? data.about_sections : [],
+        about_description: data.about_description || '',
+        contact_description: data.contact_description || '',
+        contact_email: data.contact_email || '',
+        contact_discord_handle: data.contact_discord_handle || '',
+        contact_instagram_handle: data.contact_instagram_handle || '',
+        contact_instagram_url: data.contact_instagram_url || '',
+        web3forms_key: data.web3forms_key || '',
+        show_email: data.show_email ?? false,
+        show_discord: data.show_discord ?? false,
+        show_instagram: data.show_instagram ?? false
       };
+
+      // Log the initial state for debugging
+      console.log('Initial data from API:', data.about_sections);
+      console.log('Initial localConfig:', localConfig.about_sections);
+
+      // Update the store with the fetched data
+      siteConfig.update(config => ({
+        ...config,
+        ...localConfig
+      }));
+
+      // Then check for any draft changes
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          const draftData = JSON.parse(saved);
+          // Ensure about_sections from draft is properly handled
+          const draftAboutSections = Array.isArray(draftData.about_sections) 
+            ? draftData.about_sections 
+            : localConfig.about_sections;
+
+          // Merge draft data while preserving existing values
+          localConfig = {
+            ...localConfig,
+            ...draftData,
+            nav_links: {
+              ...localConfig.nav_links,
+              ...draftData.nav_links
+            },
+            // Ensure about_sections is always an array
+            about_sections: draftAboutSections,
+            scale_factor: draftData.scale_factor || localConfig.scale_factor
+          };
+
+          // Log the state after draft merge for debugging
+          console.log('Draft data loaded:', draftData.about_sections);
+          console.log('Final localConfig:', localConfig.about_sections);
+        } catch (e) {
+          console.error('Error loading draft:', e);
+        }
+      }
+      
     } catch (err) {
       console.error('Error fetching site config:', err);
       error = err instanceof Error ? err.message : 'Failed to fetch site configuration';
@@ -556,14 +634,49 @@
     }
   }
 
+  // Add function to handle unauthorized access
+  function handleUnauthorized() {
+    localStorage.removeItem('token');
+    window.location.href = '/login';
+  }
+
+  // Add function to check if we're on admin subdomain
+  function isAdminSubdomain(): boolean {
+    if (!browser) return false;
+    return window.location.hostname.startsWith('admin.');
+  }
+
+  // Replace the existing onMount with this version
   onMount(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      goto('/login');
-      return;
+    if (isAdminSubdomain()) {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        handleUnauthorized();
+        return;
+      }
+
+      // Verify token first
+      fetch(`${API_BASE}${API_VSN}/verify`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Site-Domain': DOMAIN
+        }
+      }).then(response => {
+        if (!response.ok) {
+          handleUnauthorized();
+          return;
+        }
+        fetchSiteConfig();
+        fetchAnimations();
+      }).catch(() => {
+        handleUnauthorized();
+      });
+    } else {
+      // Not on admin subdomain, just load data
+      fetchSiteConfig();
+      fetchAnimations();
     }
-    fetchSiteConfig();
-    fetchAnimations();
+
     if (browser) {
       document.addEventListener('click', handleClickOutside);
     }
@@ -578,6 +691,17 @@
   // Set projects to false in initial config
   $: if (localConfig?.nav_links) {
       localConfig.nav_links.projects = false;
+  }
+
+  // Add a watcher to save draft when localConfig changes
+  $: if (browser && localConfig) {
+    saveDraft();
+  }
+
+  // Add a watcher specifically for about_sections
+  $: if (browser && localConfig?.about_sections) {
+    console.log('about_sections changed:', localConfig.about_sections);
+    saveDraft();
   }
 </script>
 

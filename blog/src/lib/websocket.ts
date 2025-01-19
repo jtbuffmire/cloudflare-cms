@@ -1,15 +1,11 @@
 import { browser } from '$app/environment';
-import { API_BASE } from './config';
+import { WS_BASE } from './config';
 
 export interface WebSocketMessage {
   type: string;
   data: any;
   domain?: string;
 }
-
-// Extract the base URL for WebSocket
-const wsBase = API_BASE.replace('http://', 'ws://').replace('https://', 'wss://');
-const WS_URL = `${wsBase}/ws`;
 
 export class WebSocketClient {
     private ws: WebSocket | null = null;
@@ -24,7 +20,7 @@ export class WebSocketClient {
     public onMessage: ((message: WebSocketMessage) => void) | null = null;
 
     constructor(url?: string, domain?: string) {
-        this.url = url || WS_URL;
+        this.url = url || `${WS_BASE}/ws`;
         if (browser) {
             // Only access window.location in browser environment
             this.domain = (domain || window.location.hostname).split(':')[0];

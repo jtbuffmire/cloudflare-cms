@@ -37,8 +37,16 @@ export async function requireAuth(request: Request, env: Env): Promise<Response 
 
     // Verify domain matches
     const requestDomain = new URL(request.url).hostname;
-    if (payload.domain !== requestDomain) {
-      return new Response('Invalid domain', { status: 401 });
+    const headerDomain = request.headers.get('X-Site-Domain');
+    console.log('🔐 Domain check:', { 
+        tokenDomain: payload.domain,
+        requestDomain,
+        headerDomain,
+        url: request.url
+    });
+
+    if (payload.domain !== headerDomain) {  // Check against X-Site-Domain header instead
+        return new Response('Invalid domain', { status: 401 });
     }
 
     // Check if user still exists and is active
@@ -86,27 +94,14 @@ async function verifyBlogToken(token: string, env: Env): Promise<boolean> {
 // Helper to wrap protected routes
 export function protected_route(handler: RouteHandler): RouteHandler {
   return async (request: CFRequest, env: Env, ctx: ExecutionContext, params: Record<string, string>): Promise<CFResponse> => {
-    // These paths should be public for GET requests
-    const publicPaths = [
-      `${API_VSN}/health`,
-      `${API_VSN}/preview`,
-      `${API_VSN}/pics/`,
-      `${API_VSN}/posts/`,
-      `${API_VSN}/site/`,
-      `${API_VSN}/animations/`,
-      `${API_VSN}/site/config`,
-    ];
-
-    // Check if this is a public route
-    const url = new URL(request.url);
-    const path = url.pathname;
+    const isAdminDomain = request.headers.get('Host')?.startsWith('admin.');
     
-    // Allow GET requests to public paths without auth
-    if (request.method === 'GET' && publicPaths.some(p => path.startsWith(p))) {
+    // If not admin domain, bypass auth completely
+    if (!isAdminDomain) {
       return handler(request, env, ctx, params);
     }
 
-    // For non-GET requests or non-public paths, require auth
+    // Only check auth for admin subdomain
     const token = request.headers.get('Authorization')?.split(' ')[1];
     if (!token) {
       return new Response('Authentication required', { 
@@ -136,7 +131,11 @@ export function protected_route(handler: RouteHandler): RouteHandler {
 
 // Make sure token is being stored after login
 export async function login(username: string, password: string) {
-    const response = await fetch(`${API_URL}${API_VSN}/login`, {
+    // Remove any trailing slashes from API_URL and leading slashes from API_VSN
+    const baseUrl = API_URL.replace(/\/$/, '');
+    const versionPath = API_VSN.replace(/^\//, '');
+    
+    const response = await fetch(`${baseUrl}/${versionPath}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })

@@ -99,7 +99,6 @@ export async function getSiteConfig(
   try {
     console.log('🔍 Getting site config');
 
-    // Get domain from X-Site-Domain header and strip port
     const domain = getDomainFromHeaders(request);
     if (!domain) {
       console.log('❌ Missing X-Site-Domain header');
@@ -108,11 +107,16 @@ export async function getSiteConfig(
         headers: { 'Content-Type': 'application/json' }
       }) as unknown as CFResponse;
     }
-    console.log('🌐 Site domain from header (stripped port):', domain);
-
-    // Log all request headers for debugging
+    console.log('🌐 Site domain from header:', domain);
     console.log('📨 Request headers:', Object.fromEntries(request.headers.entries()));
 
+    // First ensure default animation exists for this domain
+    await env.DB.prepare(`
+      INSERT OR IGNORE INTO animations (domain, name, r2_key)
+      VALUES (?, 'default-pin', 'animations/default-pin.json')
+    `).bind(domain).run();
+
+    // Try to get existing config
     const result = await env.DB.prepare(`
       SELECT * FROM site_config WHERE domain = ?
     `).bind(domain).first();
@@ -122,12 +126,11 @@ export async function getSiteConfig(
     if (!result) {
       console.log('❌ No config found in DB for domain:', domain);
       
-      // Create default config
+      // Create default config with ALL required fields
       const defaultConfig = {
         domain,
-        site_domain: domain,  // Initially set to the same as internal domain
-        title: 'My Site',  // Default non-null title
-        description: 'Welcome to my site',  // Default non-null description
+        title: 'My Site',
+        description: 'Welcome to my site',
         nav_links: {
           projects: false,
           blog: true,
@@ -135,86 +138,65 @@ export async function getSiteConfig(
           about: true,
           contact: true
         },
-        lottie_animation: 'default-pin',  // Use the shared default animation
-        lottie_animation_r2_key: 'animations/default-pin.json',
+        lottie_animation: 'default-pin',
+        lottie_animation_r2_key: null,
         about_description: '',
-        about_sections: [],
-        pics_description: '',
+        about_section_headers: [],
+        about_section_contents: [],
         contact_description: '',
         contact_email: '',
+        contact_email_visible: false,
         contact_discord_handle: '',
         contact_discord_url: '',
-        contact_instagram_url: '',
+        contact_discord_visible: false,
         contact_instagram_handle: '',
-        web3forms_key: '',
-        show_email: false,
-        show_discord: false,
-        show_instagram: false
+        contact_instagram_url: '',
+        contact_instagram_visible: false,
+        pics_description: '',
+        web3forms_key: ''
       };
 
-      // Insert default config into database
-      try {
-        const insertResult = await env.DB.prepare(`
-          INSERT INTO site_config (
-            domain,
-            site_domain,
-            title,
-            description,
-            nav_links,
-            lottie_animation,
-            lottie_animation_r2_key,
-            about_description,
-            about_section_headers,
-            about_section_contents,
-            pics_description,
-            contact_description,
-            contact_email,
-            contact_discord_handle,
-            contact_discord_url,
-            contact_instagram_handle,
-            contact_instagram_url,
-            contact_email_visible,
-            contact_discord_visible,
-            contact_instagram_visible,
-            web3forms_key
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(
-          domain,
-          domain,  // site_domain initially same as domain
-          defaultConfig.title,
-          defaultConfig.description,
-          JSON.stringify(defaultConfig.nav_links),
-          defaultConfig.lottie_animation,  // Use the default animation name
-          defaultConfig.lottie_animation_r2_key,  // Use the default animation r2_key
-          '',
-          JSON.stringify([]),
-          JSON.stringify([]),
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          0,
-          0,
-          0,
-          ''
-        ).run();
-        console.log('✅ Created default config:', insertResult);
-        return new Response(JSON.stringify(defaultConfig), {
-          headers: { 'Content-Type': 'application/json' }
-        }) as unknown as CFResponse;
-      } catch (insertError) {
-        console.error('❌ Failed to create default config:', insertError);
-        return new Response(JSON.stringify({ error: 'Failed to create default config' }), { 
-          status: 500,
-          headers: { 'Content-Type': 'application/json' }
-        }) as unknown as CFResponse;
-      }
+      // Insert with ALL fields
+      const insertResult = await env.DB.prepare(`
+        INSERT INTO site_config (
+          domain, title, description, nav_links,
+          lottie_animation, lottie_animation_r2_key,
+          about_description, about_section_headers, about_section_contents,
+          contact_description, contact_email, contact_email_visible,
+          contact_discord_handle, contact_discord_url, contact_discord_visible,
+          contact_instagram_handle, contact_instagram_url, contact_instagram_visible,
+          pics_description, web3forms_key
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        defaultConfig.domain,
+        defaultConfig.title,
+        defaultConfig.description,
+        JSON.stringify(defaultConfig.nav_links),  // Ensure JSON stringification
+        defaultConfig.lottie_animation,
+        defaultConfig.lottie_animation_r2_key,
+        defaultConfig.about_description,
+        JSON.stringify(defaultConfig.about_section_headers),  // Ensure JSON stringification
+        JSON.stringify(defaultConfig.about_section_contents), // Ensure JSON stringification
+        defaultConfig.contact_description,
+        defaultConfig.contact_email,
+        Number(defaultConfig.contact_email_visible),
+        defaultConfig.contact_discord_handle,
+        defaultConfig.contact_discord_url,
+        Number(defaultConfig.contact_discord_visible),
+        defaultConfig.contact_instagram_handle,
+        defaultConfig.contact_instagram_url,
+        Number(defaultConfig.contact_instagram_visible),
+        defaultConfig.pics_description,
+        defaultConfig.web3forms_key
+      ).run();
+
+      console.log('✅ Created default config:', insertResult);
+      return new Response(JSON.stringify(defaultConfig), {
+        headers: { 'Content-Type': 'application/json' }
+      }) as unknown as CFResponse;
     }
 
-    // Keep the important config parsing logic
+    // Rest of your existing config parsing logic
     const nav_links = result?.nav_links 
       ? JSON.parse(result.nav_links as string) 
       : {
@@ -307,6 +289,12 @@ export async function updateSiteConfig(
       return Response.json({ error: 'Missing domain header' }, { status: 400 }) as unknown as CFResponse;
     }
 
+    // First, ensure default animation exists for this domain
+    await env.DB.prepare(`
+      INSERT OR IGNORE INTO animations (domain, name, scale_factor)
+      VALUES (?, 'default', 100)
+    `).bind(domain).run();
+
     const incomingConfig = await request.json() as Partial<SiteConfig>;
     
     // Get existing config first
@@ -336,6 +324,9 @@ export async function updateSiteConfig(
           contents: existingRow.about_section_contents
         };
 
+    // Normalize lottie_animation to be null if empty string
+    const lottieAnimation = incomingConfig.lottie_animation === '' ? null : (incomingConfig.lottie_animation ?? existingRow.lottie_animation);
+
     // Update only the fields that are provided in the incoming config
     const stmt = env.DB.prepare(`
       UPDATE site_config 
@@ -364,7 +355,7 @@ export async function updateSiteConfig(
       incomingConfig.title ?? existingRow.title,
       incomingConfig.description ?? existingRow.description,
       nav_links,
-      incomingConfig.lottie_animation ?? existingRow.lottie_animation,
+      lottieAnimation,
       incomingConfig.lottie_animation_r2_key ?? existingRow.lottie_animation_r2_key,
       incomingConfig.about_description ?? existingRow.about_description,
       about_sections.headers,

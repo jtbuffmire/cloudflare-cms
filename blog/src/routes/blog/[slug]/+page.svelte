@@ -7,6 +7,8 @@
 	import { onDestroy } from 'svelte';
 	import { API_BASE, API_VSN } from '$lib/config';
 	import { browser } from '$app/environment';
+	import DOMPurify from 'isomorphic-dompurify';
+	import { marked } from 'marked';  
 
 	// Get the current slug from the URL params
 	$: currentSlug = $page.params.slug;
@@ -26,6 +28,10 @@
 
 	// Parse metadata once when post changes
 	$: metadata = typeof post?.metadata === 'string' ? JSON.parse(post.metadata) : post?.metadata || {};
+
+	// Parse the content when post changes
+	$: parsedContent = post?.content ? DOMPurify.sanitize(marked.parse(post.content, { async: false })) : '';
+
 
 	// Derive page metadata for head
 	$: meta = {
@@ -153,7 +159,7 @@
 				{/if}
 			</header>
 			<div class="content" use:imageLoader>
-				{@html post.content}
+				{@html parsedContent}
 			</div>
 		</article>
 	</main>

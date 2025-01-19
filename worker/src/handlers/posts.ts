@@ -51,19 +51,25 @@ export async function getPosts(
 ): Promise<CFResponse> {
   try {
     const url = new URL(request.url);
+    const domain = request.headers.get('X-Site-Domain');
+    
+    if (!domain) {
+      return new Response(JSON.stringify({ error: 'Missing domain header' }), { 
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      }) as unknown as CFResponse;
+    }
+
     const page = parseInt(url.searchParams.get('page') || '1');
     const limit = parseInt(url.searchParams.get('limit') || '10');
     const offset = (page - 1) * limit;
-
-    // Default to only published posts unless explicitly requested otherwise
-    const showAll = url.searchParams.get('all') === 'true';
     
-    let query = 'SELECT * FROM posts';
-    const queryParams: any[] = [];
+    let query = 'SELECT * FROM posts WHERE domain = ?';
+    const queryParams: any[] = [domain];
 
     // Only show published posts if explicitly requested
     if (url.searchParams.get('published') === 'true') {
-      query += ' WHERE published = 1';
+      query += ' AND published = 1';
     }
 
     // Add sorting
@@ -114,6 +120,14 @@ export async function createPost(
   params: Record<string, string>
 ): Promise<CFResponse> {
   try {
+    const headerDomain = request.headers.get('X-Site-Domain');
+    if (!headerDomain) {
+      return new Response(JSON.stringify({ error: 'Missing domain header' }), { 
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      }) as unknown as CFResponse;
+    }
+
     const data = await request.json() as {
       title?: string;
       slug?: string;
@@ -124,6 +138,10 @@ export async function createPost(
       published?: boolean;
       domain?: string;
     };
+
+    // Force the domain from the header
+    data.domain = headerDomain;
+
     console.log('📝 Received post data:', data);
 
     // Validate required fields
@@ -142,27 +160,16 @@ export async function createPost(
       }) as unknown as CFResponse;
     }
 
-    const { 
-      title, 
-      slug, 
-      content, 
-      markdown_content, 
-      html_content,
-      metadata = {}, 
-      published = false,
-      domain
-    } = data;
-
     // Check if slug already exists
     const existingPost = await env.DB.prepare('SELECT slug FROM posts WHERE slug = ?')
-      .bind(slug)
+      .bind(data.slug)
       .first();
 
     if (existingPost) {
       return new Response(
         JSON.stringify({ 
           error: 'Slug already exists',
-          slug
+          slug: data.slug
         }), 
         { 
           status: 400,
@@ -173,13 +180,13 @@ export async function createPost(
 
     // Log SQL operation
     console.log('🔄 Executing SQL insert with:', {
-      title,
-      slug,
-      contentLength: content?.length,
-      markdownLength: markdown_content?.length,
-      htmlLength: html_content?.length,
-      metadata,
-      published
+      title: data.title,
+      slug: data.slug,
+      contentLength: data.content?.length,
+      markdownLength: data.markdown_content?.length,
+      htmlLength: data.html_content?.length,
+      metadata: data.metadata,
+      published: data.published
     });
 
     // Insert with all fields
@@ -196,14 +203,14 @@ export async function createPost(
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .bind(
-      title, 
-      slug, 
-      content,
-      markdown_content || null,
-      html_content || null,
-      JSON.stringify(metadata),
-      published ? 1 : 0,
-      domain
+      data.title, 
+      data.slug, 
+      data.content,
+      data.markdown_content || null,
+      data.html_content || null,
+      JSON.stringify(data.metadata),
+      data.published ? 1 : 0,
+      data.domain
     )
     .run();
 
@@ -211,14 +218,14 @@ export async function createPost(
 
     const responseData = { 
       id: result.meta.last_row_id,
-      title,
-      slug,
-      content,
-      markdown_content,
-      html_content,
-      metadata,
-      published,
-      domain
+      title: data.title,
+      slug: data.slug,
+      content: data.content,
+      markdown_content: data.markdown_content,
+      html_content: data.html_content,
+      metadata: data.metadata,
+      published: data.published,
+      domain: data.domain
     };
 
     // Broadcast creation
@@ -260,14 +267,15 @@ export async function getPost(
 ): Promise<CFResponse> {
   try {
       const id = params?.id;
+      const domain = request.headers.get('X-Site-Domain');
 
-      const post = await env.DB.prepare('SELECT * FROM posts WHERE id = ?')
-          .bind(id)
+      const post = await env.DB.prepare('SELECT * FROM posts WHERE id = ? AND domain = ?')
+          .bind(id, domain)
           .first();
 
       if (!post) {
-          return new Response(JSON.stringify({ error: 'Post not found' }), { 
-              status: 404,
+          return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
+              status: 401,
               headers: { 'Content-Type': 'application/json' }
           }) as unknown as CFResponse;
       }
@@ -302,6 +310,17 @@ export async function updatePost(
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       }) as unknown as CFResponse;
+    }
+
+    const existingPost = await env.DB.prepare('SELECT id FROM posts WHERE id = ? AND domain = ?')
+        .bind(params.id, domain)
+        .first();
+
+    if (!existingPost) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+        }) as unknown as CFResponse;
     }
 
     const body = await request.json() as UpdatePostBody;
@@ -431,9 +450,21 @@ export async function deletePost(
       }) as unknown as CFResponse;
     }
 
-    // console.log('Deleting post with ID:', params.id);
-    const result = await env.DB.prepare('DELETE FROM posts WHERE id = ?')
-      .bind(params.id)
+    // First check if the post exists and belongs to this domain
+    const existingPost = await env.DB.prepare('SELECT id FROM posts WHERE id = ? AND domain = ?')
+      .bind(params.id, domain)
+      .first();
+
+    if (!existingPost) {
+      return new Response(JSON.stringify({ error: 'Post not found or unauthorized' }), { 
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      }) as unknown as CFResponse;
+    }
+
+    // If we get here, the post exists and belongs to this domain, so we can delete it
+    const result = await env.DB.prepare('DELETE FROM posts WHERE id = ? AND domain = ?')
+      .bind(params.id, domain)
       .run();
 
     // Broadcast deletion

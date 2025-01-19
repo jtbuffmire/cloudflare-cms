@@ -1,5 +1,6 @@
 import { writable, type Writable } from 'svelte/store';
 import { WebSocketClient } from './websocket';
+import { WS_BASE, API_VSN } from './config';
 
 const isBrowser = typeof window !== 'undefined';
 
@@ -112,7 +113,7 @@ export const siteConfig = writable<SiteConfig>({
     about: true,
     contact: true
   },
-  lottie_animation: '',
+  lottie_animation: 'default',
   lottie_animation_r2_key: null,
   about_description: '',
   about_sections: [],
@@ -189,62 +190,17 @@ class StoreManager {
   }
 
   private initWebSocket(): void {
-    this.ws = new WebSocketClient();
+    const wsUrl = `${WS_BASE}/ws?domain=${this.currentDomain}`;
+//    console.log('🔌 Initializing WebSocket with URL:', wsUrl, {
+//        WS_BASE,
+//        API_VSN,
+//        currentDomain: this.currentDomain,
+//        environment: import.meta.env.VITE_ENVIRONMENT
+//    });
     
-    this.ws.onMessage = (message: WebSocketMessage) => {
-      switch (message.type) {
-        case 'SITE_CONFIG_UPDATE':
-          siteConfig.set(message.data);
-          break;
-        case 'BASIC_INFO_UPDATE':
-          siteConfig.update(config => ({
-            ...config,
-            title: message.data.title,
-            description: message.data.description
-          }));
-          break;
-        case 'ANIMATION_SCALE_UPDATE':
-          siteConfig.update(config => ({
-            ...config,
-            scale_factor: message.data.scale_factor
-          }));
-          break;
-        case 'PICS_UPDATE':
-          pics.update(items => {
-            const updatedItem = message.data;
-            return items.map(item => 
-              item.id === updatedItem.id ? { ...item, ...updatedItem } : item
-            );
-          });
-          break;
-        case 'connected':
-          // Handle initial connection status
-          // console.log('🔌 WebSocket connection status:', {
-          //   domain: message.domain,
-          //   sessionCount: message.sessionCount
-          // });
-          break;
-        case 'pong':
-          // Ignore pong messages - they're just for keeping the connection alive
-          break;
-        case 'project_created':
-          projects.update(items => [...items, message.data]);
-          break;
-        case 'project_updated':
-          projects.update(items => items.map(item => 
-            item.id === message.data.id ? message.data : item
-          ));
-          break;
-        case 'project_deleted':
-          projects.update(items => items.filter(item => item.id !== message.data.id));
-          break;
-        default:
-          if (message.type !== 'connection_confirmed') {
-            console.warn('📨 Unhandled message type:', message.type);
-          }
-      }
-    };
+    this.ws = new WebSocketClient(wsUrl);
     
+    // The WebSocketClient already has error handling via addEventListener
     this.ws.connect();
   }
 }

@@ -1,5 +1,5 @@
 import type { Env } from './types';
-import { API_VSN } from './lib/api';
+import { API_VSN } from './lib/config';
 import type { ExecutionContext, Response as CFResponse, Request as CFRequest } from '@cloudflare/workers-types';
 import { getPics, uploadPics, getPicsFile, deletePics, updatePics } from './handlers/pics';
 import { login } from './handlers/auth';
@@ -163,6 +163,12 @@ export function createRouter() {
     }
 
     try {
+      // Ensure JWT_SECRET is a string
+      if (!env.JWT_SECRET || typeof env.JWT_SECRET !== 'string') {
+        console.error('Invalid JWT_SECRET configuration:', typeof env.JWT_SECRET);
+        return new Response('Server configuration error', { status: 500 }) as unknown as CFResponse;
+      }
+
       const isValid = await verify(token, env.JWT_SECRET);
       if (isValid) {
         return new Response('Token valid', { status: 200 }) as unknown as CFResponse;
@@ -177,51 +183,41 @@ export function createRouter() {
   router.get(`${API_VSN}/verify`, verifyHandler);
 
   // Public routes (for blog access)
-  router.get(`${API_VSN}/pics`, getPics as unknown as RouteHandler);          // List pics
-  router.get(`${API_VSN}/pics/:id`, getPicsFile as unknown as RouteHandler);  // Get single pic
-  router.get(`${API_VSN}/projects`, handleGetProjects as unknown as RouteHandler);
-  router.get(`${API_VSN}/projects/:id`, handleGetProject as unknown as RouteHandler);
+  router.get(`${API_VSN}/posts`, getPosts as unknown as RouteHandler);
+  router.get(`${API_VSN}/posts/:id`, getPost as unknown as RouteHandler);
+  router.get(`${API_VSN}/pics`, getPics as unknown as RouteHandler);          
+  router.get(`${API_VSN}/pics/:id`, getPicsFile as unknown as RouteHandler);  
   router.get(`${API_VSN}/animations`, getAnimations as unknown as RouteHandler);
   router.get(`${API_VSN}/animations/file/:name`, getAnimationByName as unknown as RouteHandler);
   router.get(`${API_VSN}/site/config`, getSiteConfig as unknown as RouteHandler);
-  
-  // Public posts route with published filter
-  const postsHandler: RouteHandler = async (request, env, ctx, params) => {
-    const url = new URL(request.url);
-    const isPublishedOnly = url.searchParams.get('published') === 'true';
-    
-    if (isPublishedOnly) {
-      // Allow public access for published posts
-      return getPosts(request as CFRequest, env, ctx, params);
-    } else {
-      // Require authentication for all posts
-      return protected_route(getPosts)(request, env, ctx, params);
-    }
-  };
+  router.get(`${API_VSN}/projects`, handleGetProjects as unknown as RouteHandler);
+  router.get(`${API_VSN}/projects/:id`, handleGetProject as unknown as RouteHandler);
 
-  router.get(`${API_VSN}/posts`, postsHandler);
-
-  // Protected routes (require auth)
-  router.post(`${API_VSN}/pics`, protected_route(uploadPics) as unknown as RouteHandler);
-  router.put(`${API_VSN}/pics/:id`, protected_route(updatePics) as unknown as RouteHandler);
-  router.delete(`${API_VSN}/pics/:id`, protected_route(deletePics) as unknown as RouteHandler);
-
+  // Protected routes (require auth) - only for admin panel
   router.post(`${API_VSN}/posts`, protected_route(createPost) as unknown as RouteHandler);
-  router.get(`${API_VSN}/posts/:id`, protected_route(getPost) as unknown as RouteHandler);
   router.put(`${API_VSN}/posts/:id`, protected_route(updatePost) as unknown as RouteHandler);
   router.delete(`${API_VSN}/posts/:id`, protected_route(deletePost) as unknown as RouteHandler);
-  
+
+  // Protected preview route
   router.post(`${API_VSN}/preview`, protected_route(generatePreview) as unknown as RouteHandler);
 
+  // Protected site routes
   router.put(`${API_VSN}/site/config`, protected_route(updateSiteConfig) as unknown as RouteHandler);
   router.put(`${API_VSN}/site/basic-info`, protected_route(updateBasicInfo) as unknown as RouteHandler);
   router.put(`${API_VSN}/site/config/animation-scale`, protected_route(updateAnimationScale) as unknown as RouteHandler);
 
+  // Protected animation routes
   router.post(`${API_VSN}/animations`, protected_route(uploadAnimation) as unknown as RouteHandler);
   
+  // Protected project routes
   router.post(`${API_VSN}/projects`, protected_route(handleCreateProject) as unknown as RouteHandler);
   router.put(`${API_VSN}/projects/:id`, protected_route(handleUpdateProject) as unknown as RouteHandler);
   router.delete(`${API_VSN}/projects/:id`, protected_route(handleDeleteProject) as unknown as RouteHandler);
+
+  // Protected pic routes
+  router.post(`${API_VSN}/pics`, protected_route(uploadPics) as unknown as RouteHandler);
+  router.put(`${API_VSN}/pics/:id`, protected_route(updatePics) as unknown as RouteHandler);
+  router.delete(`${API_VSN}/pics/:id`, protected_route(deletePics) as unknown as RouteHandler);
 
   // WebSocket handler
   const wsHandler: RouteHandler = async (request, env, ctx, params) => {
@@ -237,9 +233,9 @@ export function createRouter() {
       return new Response('Missing domain parameter', { status: 400 }) as unknown as CFResponse;
     }
 
-    // Allow development domains
+    // Add null check before using includes
     const isDevelopment = env.ENVIRONMENT === 'development';
-    if (!isDevelopment && !domain.includes('.')) {
+    if (!isDevelopment && domain && !domain.includes('.')) {
       return new Response('Invalid domain', { status: 400 }) as unknown as CFResponse;
     }
 
@@ -277,7 +273,7 @@ export function createRouter() {
   };
 
   // WebSocket route
-  router.get('/ws', wsHandler);
+  router.get(`/ws`, wsHandler);
 
   return router;
 }

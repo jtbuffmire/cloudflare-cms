@@ -12,13 +12,68 @@
   import { browser } from '$app/environment';
   import PicSelector from '$lib/components/PicSelector.svelte';
 
-  // Get domain and token from URL params or defaults
-  const urlDomain = $page.url.searchParams.get('domain');
-  const urlToken = $page.url.searchParams.get('token');
-  const domain = urlDomain || getDomain();
+  const DOMAIN = getDomain();
+  let isLoading = true;
+  let isAuthenticated = false;
+  let isSaving = false;
+  let showPicSelector = false;
+  let showPreview = false;
+  let previewHtml = '';
+  let showIconSelector = false;
 
   // Track if form has been modified
   let isFormDirty = false;
+
+  function handleUnauthorized() {
+    localStorage.removeItem('token');
+    window.location.href = '/login';
+  }
+
+  function isAdminSubdomain(): boolean {
+    if (!browser) return false;
+    return window.location.hostname.startsWith('admin.');
+  }
+
+  onMount(async () => {
+    if (isAdminSubdomain()) {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        handleUnauthorized();
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}${API_VSN}/verify`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'X-Site-Domain': DOMAIN
+          }
+        });
+        
+        if (!response.ok) {
+          handleUnauthorized();
+          return;
+        }
+        
+        isAuthenticated = true;
+        loadFormState();
+      } catch {
+        handleUnauthorized();
+      }
+    } else {
+      isAuthenticated = true;
+      loadFormState();
+    }
+    
+    isLoading = false;
+  });
+
+  // Get domain and token from URL params or defaults
+  const urlDomain = $page.url.searchParams.get('domain');
+  const urlToken = $page.url.searchParams.get('token');
+  const domain = urlDomain || DOMAIN;
+
+  // Track if form has been modified
   let isSubmitting = false;
 
   // Save form state to localStorage
@@ -94,7 +149,6 @@
   }
 
   onMount(() => {
-    loadFormState();
     if (browser) {
       window.addEventListener('beforeunload', handleBeforeUnload);
     }
@@ -127,12 +181,7 @@
     icon: 'article'
   };
   let error: string | null = null;
-  let isSaving = false;
-  let showPicSelector = false;
-  let showPreview = false;
-  let previewHtml = '';
   let previewContainer: HTMLElement;
-  let showIconSelector = false;
 
   // Update request init to include token if provided in URL
   const getPageRequestInit = () => {
@@ -256,123 +305,140 @@
   }
 </script>
 
-<div class="max-w-[95%] mx-auto px-4 py-8">
-  <div class="flex justify-between items-center mb-8">
-    <h1 class="text-3xl font-bold text-white">New Post</h1>
-    <div class="flex gap-2">
-      <Button color="dark" on:click={() => handleNavigation('/posts')}>Back to Posts</Button>
-      <Button color="dark" on:click={() => showPicSelector = !showPicSelector}>
-        <iconify-icon icon="mdi:image" class="mr-2"></iconify-icon>
-        Insert Image
-      </Button>
-      <Button color="dark" on:click={() => showIconSelector = !showIconSelector}>
-        <iconify-icon icon="mdi:emoticon" class="mr-2"></iconify-icon>
-        Change Icon
-      </Button>
-      <Button color="dark" on:click={togglePreview}>
-        <iconify-icon icon={showPreview ? "mdi:pencil" : "mdi:eye"} class="mr-2"></iconify-icon>
-        {showPreview ? 'Edit' : 'Preview'}
-      </Button>
-    </div>
+{#if isLoading}
+  <div class="min-h-screen bg-gray-900 flex items-center justify-center">
+    <Spinner size="12" />
   </div>
-
-  {#if error}
-    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-      <p>{error}</p>
+{:else if isAuthenticated}
+  <div class="max-w-[95%] mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-8">
+      <h1 class="text-3xl font-bold text-white">New Post</h1>
+      <div class="flex gap-2">
+        <Button href="/posts" color="dark">Back to Posts</Button>
+        <Button color="blue" on:click={() => showPicSelector = !showPicSelector}>
+          <iconify-icon icon="mdi:image" class="mr-2"></iconify-icon>
+          Insert Image
+        </Button>
+        <Button color="blue" on:click={() => showIconSelector = !showIconSelector}>
+          <iconify-icon icon="mdi:emoticon" class="mr-2"></iconify-icon>
+          Add Icon
+        </Button>
+        <Button color="blue" on:click={togglePreview}>
+          <iconify-icon icon={showPreview ? "mdi:pencil" : "mdi:eye"} class="mr-2"></iconify-icon>
+          {showPreview ? 'Edit' : 'Preview'}
+        </Button>
+      </div>
     </div>
-  {/if}
 
-  <Card class="bg-gray-800 !max-w-none w-full">
-    <form on:submit|preventDefault={handleSubmit} class="space-y-6">
-      <div class="grid grid-cols-2 gap-6">
-        <div>
-          <Label for="title" class="mb-2 text-lg font-medium text-gray-100">Title</Label>
-          <div class="flex items-center gap-4">
-            <iconify-icon icon={metadata.icon} class="text-2xl text-gray-400"></iconify-icon>
+    {#if error}
+      <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+        <p>{error}</p>
+      </div>
+    {/if}
+
+    <Card class="bg-gray-800 !max-w-none w-full">
+      <form on:submit|preventDefault={handleSubmit} class="space-y-6">
+        <div class="grid grid-cols-2 gap-6">
+          <div>
+            <Label for="title" class="mb-2 text-lg font-medium text-gray-100">Title</Label>
+            <div class="flex items-center gap-4">
+              <iconify-icon icon={metadata.icon} class="text-2xl text-gray-400"></iconify-icon>
+              <Input
+                id="title"
+                type="text"
+                bind:value={title}
+                placeholder="Post title"
+                required
+                class="w-full"
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label for="slug" class="mb-2 text-lg font-medium text-gray-100">Slug</Label>
             <Input
-              id="title"
+              id="slug"
               type="text"
-              bind:value={title}
-              placeholder="Post title"
+              bind:value={slug}
+              placeholder="post-slug"
+              on:input={validateSlug}
               required
               class="w-full"
             />
+            <p class="mt-1 text-sm text-gray-400">URL-friendly version of the title</p>
           </div>
         </div>
 
-        <div>
-          <Label for="slug" class="mb-2 text-lg font-medium text-gray-100">Slug</Label>
-          <Input
-            id="slug"
-            type="text"
-            bind:value={slug}
-            placeholder="post-slug"
-            on:input={validateSlug}
-            required
-            class="w-full"
-          />
-          <p class="mt-1 text-sm text-gray-400">URL-friendly version of the title</p>
-        </div>
-      </div>
+        <div class="grid grid-cols-2 gap-6">
+          <div>
+            <Label for="description" class="mb-2 text-lg font-medium text-gray-100">Description</Label>
+            <Textarea
+              id="description"
+              bind:value={metadata.description}
+              placeholder="Brief description of the post..."
+              class="h-24 w-full"
+            />
+          </div>
 
-      <div class="grid grid-cols-2 gap-6">
-        <div>
-          <Label for="description" class="mb-2 text-lg font-medium text-gray-100">Description</Label>
-          <Textarea
-            id="description"
-            bind:value={metadata.description}
-            placeholder="Brief description of the post..."
-            class="h-24 w-full"
-          />
-        </div>
-
-        <div>
-          <Label class="mb-2 text-lg font-medium text-gray-100">Post Icon</Label>
-          <div class="flex items-center gap-2">
-            <iconify-icon icon={metadata.icon} class="text-2xl text-gray-400"></iconify-icon>
-            <Button color="dark" on:click={() => showIconSelector = !showIconSelector}>
-              Change Icon
-            </Button>
+          <div>
+            <Label class="mb-2 text-lg font-medium text-gray-100">Post Icon</Label>
+            <div class="flex items-center gap-2">
+              <iconify-icon icon={metadata.icon} class="text-2xl text-gray-400"></iconify-icon>
+              <Button color="dark" on:click={() => showIconSelector = !showIconSelector}>
+                Change Icon
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {#if showPicSelector}
-        <PicSelector onSelect={handleImageSelect} class="w-full" />
-      {/if}
-
-      {#if showIconSelector}
-        <IconSelector on:select={handleIconSelect} />
-      {/if}
-
-      <div>
-        <Label for="content" class="mb-2 text-lg font-medium text-gray-100">Content</Label>
-        {#if showPreview}
-          <div class="prose prose-invert max-w-none bg-gray-900 p-6 rounded-lg">
-            {@html previewHtml}
-          </div>
-        {:else}
-          <Textarea
-            id="content"
-            name="markdown_content"
-            class="h-96 font-mono w-full resize p-4 bg-gray-900 border-gray-600 text-white rounded-lg min-h-[16rem]"
-            bind:value={markdown_content}
-            placeholder="Write your post content here using Markdown..."
-            required
-          />
+        {#if showPicSelector}
+          <PicSelector onSelect={handleImageSelect} class="w-full" />
         {/if}
-      </div>
 
-      <div class="flex justify-end gap-2">
-        <Button type="submit" color="blue" disabled={isSaving}>
-          {#if isSaving}
-            <Spinner class="mr-2" size="4" />
-            Saving...
+        {#if showIconSelector}
+          <IconSelector on:select={handleIconSelect} />
+        {/if}
+
+        <div>
+          <Label for="content" class="mb-2 text-lg font-medium text-gray-100">Content</Label>
+          {#if showPreview}
+            <div class="prose prose-invert max-w-none bg-gray-900 p-6 rounded-lg">
+              {@html previewHtml}
+            </div>
           {:else}
-            Create Post
+            <Textarea
+              id="content"
+              name="markdown_content"
+              class="h-96 font-mono w-full resize p-4 bg-gray-900 border-gray-600 text-white rounded-lg min-h-[16rem]"
+              bind:value={markdown_content}
+              placeholder="Write your post content here using Markdown..."
+              required
+            />
           {/if}
-        </Button>
-      </div>
-    </form>
-  </Card>
-</div> 
+        </div>
+
+        <div class="flex justify-end gap-2">
+          <Button type="submit" color="blue" disabled={isSaving}>
+            {#if isSaving}
+              <Spinner class="mr-2" size="4" />
+              Saving...
+            {:else}
+              Create Post
+            {/if}
+          </Button>
+        </div>
+      </form>
+    </Card>
+  </div>
+{/if}
+
+<style>
+  :global(iconify-icon) {
+    font-size: 2em;
+    vertical-align: middle;
+  }
+
+  :global(.text-3xl iconify-icon) {
+    font-size: 2em;
+  }
+</style> 

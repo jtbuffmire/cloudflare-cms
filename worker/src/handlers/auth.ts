@@ -27,15 +27,14 @@ export const login: RouteHandler = async (request, env) => {
 
     console.log('Login attempt:', { 
       email,
-      domain: request.headers.get('X-Site-Domain'),
-      validEmail: env.ADMIN_EMAIL.includes(email)
+      domain: request.headers.get('X-Site-Domain')
     });
 
     // Verify against env variables
-    const adminEmails = env.ADMIN_EMAIL.split(',');
-    const adminPasswords = env.ADMIN_PASSWORD.split(',');
+    const adminEmails = env.ADMIN_EMAIL?.split(',') || [];
+    const adminPasswords = env.ADMIN_PASSWORD?.split(',') || [];
     const isValid = adminEmails.some((adminEmail, index) => 
-      email === adminEmail.trim() && password === adminPasswords[index].trim()
+      email === adminEmail.trim() && password === adminPasswords[index]?.trim()
     );
 
     if (!isValid) {

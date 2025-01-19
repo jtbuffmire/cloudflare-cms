@@ -2,14 +2,17 @@
   import { onMount } from 'svelte';
   import { API_BASE, API_VSN, getDomain, getRequestInit } from '$lib/config';
   import type { PicsItem } from '$lib/types';
+  import { Button, Spinner } from 'flowbite-svelte';
+  import { browser } from '$app/environment';
 
   const DOMAIN = getDomain();
   
   let picsItems: PicsItem[] = [];
   let error: string | null = null;
-  let isLoading = false;
+  let isLoading = true;
   let editingTagline: string | null = null;
   let imageUrls: Record<string, string> = {};
+  let isAuthenticated = false;
 
   async function loadImageWithAuth(url: string): Promise<string> {
     const token = localStorage.getItem('token');
@@ -355,134 +358,147 @@
     }
   }
 
-  onMount(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      handleUnauthorized();
-      return;
-    }
-
-    // Verify token first
-    fetch(`${API_BASE}${API_VSN}/verify`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'X-Site-Domain': DOMAIN
-      }
-    }).then(response => {
-      if (!response.ok) {
-        handleUnauthorized();
-        return;
-      }
-      loadPics();
-    }).catch(() => {
-      handleUnauthorized();
-    });
-    
-    // Cleanup blob URLs on unmount
-    return () => {
-      Object.values(imageUrls).forEach(URL.revokeObjectURL);
-    };
-  });
-
-  // Add a function to handle unauthorized responses
+  // Add function to handle unauthorized access
   function handleUnauthorized() {
     localStorage.removeItem('token');
     window.location.href = '/login';
   }
+
+  // Add function to check if we're on admin subdomain
+  function isAdminSubdomain(): boolean {
+    if (!browser) return false;
+    return window.location.hostname.startsWith('admin.');
+  }
+
+  onMount(async () => {
+    if (isAdminSubdomain()) {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        handleUnauthorized();
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}${API_VSN}/verify`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'X-Site-Domain': DOMAIN
+          }
+        });
+        
+        if (!response.ok) {
+          handleUnauthorized();
+          return;
+        }
+        
+        isAuthenticated = true;
+        await loadPics();
+      } catch {
+        handleUnauthorized();
+      }
+    } else {
+      isAuthenticated = true;
+      await loadPics();
+    }
+    
+    isLoading = false;
+  });
 </script>
 
-<div class="container mx-auto p-4">
-  <div class="flex justify-between items-center mb-4">
-    <h2 class="h2">Picture Library</h2>
-    <label class="btn variant-filled-primary">
-      Upload File
-      <input 
-        type="file" 
-        class="hidden"
-        on:change={handleFileUpload}
-        accept="image/*"
-      />
-    </label>
+{#if isLoading}
+  <div class="min-h-screen bg-gray-900 flex items-center justify-center">
+    <Spinner size="12" />
   </div>
-
-  {#if error}
-    <div class="alert variant-filled-error">{error}</div>
-  {/if}
-
-  {#if isLoading}
-    <div class="flex justify-center">
-      <div class="spinner"></div>
+{:else if isAuthenticated}
+  <div class="container mx-auto p-4">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-2xl font-bold text-white">Picture Library</h2>
+      <label class="btn variant-filled-primary">
+        Upload File
+        <input 
+          type="file" 
+          class="hidden"
+          on:change={handleFileUpload}
+          accept="image/*"
+        />
+      </label>
     </div>
-  {:else if picsItems.length === 0}
-    <div class="text-center py-8">
-      <p>No Pics found</p>
-    </div>
-  {:else}
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {#each picsItems as item (item.id)}
-        <div class="card p-4">
-          {#if item.url}
-            <img 
-              src={imageUrls[item.id] || ''}
-              alt={item.filename}
-              class="w-full h-48 object-cover rounded"
-            />
-          {/if}
-          <div class="mt-2">
-            <p class="font-semibold">{item.filename}</p>
-            <p class="text-sm text-gray-600">{formatFileSize(item.size)}</p>
-            
-            {#if editingTagline === item.id}
-              <div class="mt-2">
-                <input 
-                  type="text"
-                  class="input"
-                  value={item.text_description || ''}
-                  placeholder="Enter tagline..."
-                  on:blur={(e) => updateTagline(item.id, (e.currentTarget as HTMLInputElement).value)}
-                  on:keydown={(e) => e.key === 'Enter' && updateTagline(item.id, (e.currentTarget as HTMLInputElement).value)}
-                />
-              </div>
-            {:else}
-              <button 
-                type="button"
-                class="text-sm text-gray-600 mt-2 cursor-pointer hover:text-gray-800 text-left w-full"
-                on:click={() => editingTagline = item.id}
-                on:keydown={(e) => e.key === 'Enter' && (editingTagline = item.id)}
-              >
-                {item.text_description || 'Add tagline...'}
-              </button>
+
+    {#if error}
+      <div class="alert variant-filled-error">{error}</div>
+    {/if}
+
+    {#if picsItems.length === 0}
+      <div class="text-center py-8">
+        <p>No Pics found</p>
+      </div>
+    {:else}
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {#each picsItems as item (item.id)}
+          <div class="card p-4">
+            {#if item.url}
+              <img 
+                src={imageUrls[item.id] || ''}
+                alt={item.filename}
+                class="w-full h-48 object-cover rounded"
+              />
             {/if}
+            <div class="mt-2">
+              <p class="font-semibold">{item.filename}</p>
+              <p class="text-sm text-gray-600">{formatFileSize(item.size)}</p>
+              
+              {#if editingTagline === item.id}
+                <div class="mt-2">
+                  <input 
+                    type="text"
+                    class="input"
+                    value={item.text_description || ''}
+                    placeholder="Enter tagline..."
+                    on:blur={(e) => updateTagline(item.id, (e.currentTarget as HTMLInputElement).value)}
+                    on:keydown={(e) => e.key === 'Enter' && updateTagline(item.id, (e.currentTarget as HTMLInputElement).value)}
+                  />
+                </div>
+              {:else}
+                <button 
+                  type="button"
+                  class="text-sm text-gray-600 mt-2 cursor-pointer hover:text-gray-800 text-left w-full"
+                  on:click={() => editingTagline = item.id}
+                  on:keydown={(e) => e.key === 'Enter' && (editingTagline = item.id)}
+                >
+                  {item.text_description || 'Add tagline...'}
+                </button>
+              {/if}
 
-            <div class="flex gap-2 mt-2">
-              <button 
-                class="btn btn-sm {item.published ? 'font-bold variant-filled-primary' : 'variant-ghost-primary'}"
-                on:click={() => togglePublish(item.id, item.published)}
-                title={item.published ? 'Published' : 'Not Published'}
-              >
-                Publish
-              </button>
-              <button 
-                class="btn btn-sm {item.show_in_pics ? 'font-bold variant-filled-secondary' : item.published ? 'variant-ghost-secondary' : 'variant-ghost-secondary opacity-50'}"
-                on:click={() => toggleVisibility(item.id, 'show_in_pics', item.show_in_pics)}
-                disabled={!item.published}
-                title={!item.published ? 'Publish the image first to enable Pics' : item.show_in_pics ? 'Remove from Pics' : 'Add to Pics'}
-              >
-                Pics
-              </button>
-              <button 
-                class="btn btn-sm variant-ghost-error"
-                on:click={() => handleDelete(item.id)}
-              >
-                Delete
-              </button>
+              <div class="flex gap-2 mt-2">
+                <button 
+                  class="btn btn-sm {item.published ? 'font-bold variant-filled-primary' : 'variant-ghost-primary'}"
+                  on:click={() => togglePublish(item.id, item.published)}
+                  title={item.published ? 'Published' : 'Not Published'}
+                >
+                  Publish
+                </button>
+                <button 
+                  class="btn btn-sm {item.show_in_pics ? 'font-bold variant-filled-secondary' : item.published ? 'variant-ghost-secondary' : 'variant-ghost-secondary opacity-50'}"
+                  on:click={() => toggleVisibility(item.id, 'show_in_pics', item.show_in_pics)}
+                  disabled={!item.published}
+                  title={!item.published ? 'Publish the image first to enable Pics' : item.show_in_pics ? 'Remove from Pics' : 'Add to Pics'}
+                >
+                  Pics
+                </button>
+                <button 
+                  class="btn btn-sm variant-ghost-error"
+                  on:click={() => handleDelete(item.id)}
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      {/each}
-    </div>
-  {/if}
-</div>
+        {/each}
+      </div>
+    {/if}
+  </div>
+{/if}
 
 <style>
   .spinner {
