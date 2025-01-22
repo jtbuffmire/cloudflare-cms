@@ -34,20 +34,18 @@ A lightweight, serverless CMS and blog platform built with Cloudflare Pages and 
    - PUT /api/posts/:id
    - DELETE /api/posts/:id
 
-### 🏗️ In Progress
-1. Authentication System
-   - JWT implementation
+4. Basic Authentication System leveraging Cloudflare Secrets
+   - JWTs
    - Login/logout flow
    - Session management
 
-### 📋 Todo
-1. File Upload System
+5. File Upload System
    - R2 bucket setup
    - Image upload endpoints
    - Media library management
    - Image optimization
 
-2. Admin Interface
+6. Admin Interface
    - Login page
    - Dashboard
    - Post editor with markdown support
