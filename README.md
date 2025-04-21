@@ -3,10 +3,9 @@
 A lightweight, serverless CMS and blog platform built with Cloudflare Pages and Workers.
 
 ## Project Goals
-- Create a performant, serverless blog platform
-- Enable non-technical users to manage content through a simple admin interface
-- Keep costs minimal by leveraging Cloudflare's free tier services
-- Maintain high performance and security standards
+- Lightweight, serverless blog platform
+- Admin page allows non-technical users to manage content through a simple admin interface
+- Serverless architecture across all three services keeps costs minimal and leverages Cloudflare's free tiers
 
 ## Tech Stack
 - Frontend: Cloudflare Pages
@@ -112,7 +111,6 @@ POST /api/upload # File upload
 GET /api/media # List media
 DELETE /api/media/:id # Delete media
 
-
 ## Development Setup
 1. Clone repository
 2. Install dependencies: `npm install`
@@ -143,20 +141,21 @@ MIT
 - [Cloudflare D1 Documentation](https://developers.cloudflare.com/d1/)
 - [Cloudflare R2 Documentation](https://developers.cloudflare.com/r2/)
 
-Notes
+# Notes
+To run the services in a development environment, you'll want to use three terminal sessions. One for each service (blog front end, admin portal, cloudflare worker):
 
-# Terminal 1 (in worker directory)
+## Terminal 1 (in worker directory)
 npx wrangler dev
 
-# Terminal 2 (in admin directory)
+## Terminal 2 (in admin directory)
 npm run dev
 
-# Terminal 3 (in blog directory)
+## Terminal 3 (in blog directory)
 npm run dev
 
-## Database Management
+### Database Management
 
-### Setup and Migrations
+#### Setup and Migrations
 The project uses Cloudflare D1 (SQLite) for the database. All database changes are managed through migrations in the `worker/migrations/sql` directory.
 
 ```bash
@@ -277,26 +276,6 @@ Fixed exposed secrets issue
 
 
 
-
-
-next 
-Start your worker (wrangler dev)
-Start your admin panel (npm run dev)
-Start your blog (npm run dev)
-Make a change in the admin panel
-Verify the blog updates automatically
-
-is this right?
-  router.delete('/api/media/:id', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
-    return deleteMedia(request, env, params.id);
-  });
-
-
-  That clean up script i had to add to the index.ts file to get rid of the duplicate files.
-    // Add this temporarily for cleanup
-  router.post('/api/debug/cleanup', async (request: Request, env: Env) => {
-    try {
-      console.log('🧹 Starting cleanup...');
       
       // Get all files from database
       const { results: dbFiles } = await env.DB.prepare(`
