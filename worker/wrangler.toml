@@ -10,7 +10,7 @@ ip = "localhost"
 [[d1_databases]]
 binding = "DB"
 database_name = "cms-db"
-database_id = "e425276a-525d-41d5-bc6a-9e2c17744ef5"
+database_id = "${DATABASE_ID}" 
 migrations_dir = "migrations/sql"
 
 [[r2_buckets]]
@@ -32,7 +32,7 @@ new_classes = ["WebSocketHandler"]
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "cms-db"
-database_id = "e425276a-525d-41d5-bc6a-9e2c17744ef5"
+database_id =  "${DATABASE_ID}"
 
 [[env.production.r2_buckets]]
 binding = "BUCKET"
