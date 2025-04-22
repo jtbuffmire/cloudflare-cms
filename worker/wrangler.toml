@@ -10,7 +10,7 @@ ip = "localhost"
 [[d1_databases]]
 binding = "DB"
 database_name = "cms-db"
-database_id = "${DATABASE_ID}" 
+database_id = "${DATABASE_ID}"
 migrations_dir = "migrations/sql"
 
 [[r2_buckets]]
@@ -46,4 +46,9 @@ class_name = "WebSocketHandler"
 # wrangler.toml (wrangler v3.88.0^)
 [observability.logs]
 enabled = true
+
+# For development only - use wrangler secret for production
+JWT_SECRET = "${JWT_SECRET}"
+ADMIN_USERNAME = "${ADMIN_USERNAME}"
+ADMIN_PASSWORD = "${ADMIN_PASSWORD}"
 
