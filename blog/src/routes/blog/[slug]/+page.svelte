@@ -9,12 +9,13 @@
 	import { browser } from '$app/environment';
 	import DOMPurify from 'isomorphic-dompurify';
 	import { marked } from 'marked';  
+	import type { Post } from '$lib/types';
 
 	// Get the current slug from the URL params
 	$: currentSlug = $page.params.slug;
 
 	// Find the matching post from our posts store
-	$: post = ($posts || []).find(p => p.slug === currentSlug);
+	$: post = ($posts || []).find((p): p is Post => p.slug === currentSlug);
 
 	// Watch for post changes that affect visibility
 	$: {
@@ -30,9 +31,8 @@
 	$: metadata = typeof post?.metadata === 'string' ? JSON.parse(post.metadata) : post?.metadata || {};
 
 	// Parse the content when post changes
-	$: parsedContent = post?.content ? DOMPurify.sanitize(marked.parse(post.content, { async: false })) : '';
-
-
+	$: parsedContent = post?.markdown_content ? DOMPurify.sanitize(marked.parse(post.markdown_content, { async: false })) : '';
+	
 	// Derive page metadata for head
 	$: meta = {
 		title: post?.title || 'Post not found',
@@ -64,10 +64,21 @@
 
 		function loadImage(img: HTMLImageElement) {
 			const originalSrc = img.src;
-			if (originalSrc.includes('/post-images/') || originalSrc.includes('/pics/')) {
+			console.log('Processing image:', { 
+				originalSrc,
+				includesCheck: {
+					postImages: originalSrc.includes('/post-images/'),
+					pics: originalSrc.includes('/pics/')
+				},
+				isAbsolute: originalSrc.startsWith('http')
+			});
+
+			// Only process if it's a relative URL
+			if ((originalSrc.includes('/post-images/') || originalSrc.includes('/pics/')) && 
+				!originalSrc.startsWith('http')) {
 				// Convert the relative URL to an absolute URL with proper domain
 				const fullUrl = getPicUrl(originalSrc);
-				console.log('Loading image:', { originalSrc, fullUrl });
+				console.log('Converting URL:', { originalSrc, fullUrl });
 				
 				fetch(fullUrl)
 					.then(response => {
@@ -86,6 +97,9 @@
 						img.style.padding = '1rem';
 						img.alt = 'Failed to load image';
 					});
+			} else {
+				// For absolute URLs, just set opacity
+				img.style.opacity = '1';
 			}
 		}
 

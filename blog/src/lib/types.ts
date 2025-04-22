@@ -27,6 +27,26 @@ export interface SiteConfig {
   show_instagram: boolean;
 }
 
+export interface Post {
+  id: string;  
+  domain: string;
+  title: string;
+  content: string;
+  markdown_content: string;
+  html_content: string;
+  metadata: {
+    description: string;
+    tags: string[];
+    coverImage: string;
+    icon: string;
+  };
+  slug: string;
+  published: boolean;
+  published_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Project {
     id?: number;
     domain?: string;

@@ -860,3 +860,16 @@ Header Animation System:
    - SVG paths are defined with specific stroke colors and widths
    - Any motion effects are likely handled by CSS, not JavaScript
    - This separation of concerns (SVG vs Lottie) is what keeps it stable
+
+
+Things still to do
+- spinning wheel while photos upload? 
+- Multiple users for a single domain. 
+- Users can post and comment on posts, but only those authorized to the domain. 
+- Chat recommends:
+  - Users can edit and delete their own posts. 
+  - Users can edit and delete their own comments. 
+  - Users can edit and delete their own photos. 
+  - Users can edit and delete their own site configuration. 
+  - Users can edit and delete their own site configuration. 
+
