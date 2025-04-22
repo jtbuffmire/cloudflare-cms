@@ -1,6 +1,11 @@
-name = "cloudflare-cms"
+name = "cms"
 main = "src/index.ts"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-01-08"
+
+[dev]
+port = 8787
+local_protocol = "http"
+ip = "localhost"
 
 [[d1_databases]]
 binding = "DB"
@@ -9,7 +14,7 @@ database_id = "${DATABASE_ID}"
 migrations_dir = "migrations/sql"
 
 [[r2_buckets]]
-binding = "MEDIA_BUCKET"
+binding = "BUCKET"
 bucket_name = "cms-media"
 preview_bucket_name = "cms-media-dev"
 
@@ -21,10 +26,29 @@ class_name = "WebSocketHandler"
 tag = "v1"
 new_classes = ["WebSocketHandler"]
 
-[vars]
-ENVIRONMENT = "development" 
+# Production environment
+[env.production]
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "cms-db"
+database_id =  "${DATABASE_ID}"
+
+[[env.production.r2_buckets]]
+binding = "BUCKET"
+bucket_name = "cms-media"
+
+# Add durable objects configuration to production
+[[env.production.durable_objects.bindings]]
+name = "WEBSOCKET_HANDLER"
+class_name = "WebSocketHandler"
+
+# wrangler.toml (wrangler v3.88.0^)
+[observability.logs]
+enabled = true
 
 # For development only - use wrangler secret for production
 JWT_SECRET = "${JWT_SECRET}"
 ADMIN_USERNAME = "${ADMIN_USERNAME}"
 ADMIN_PASSWORD = "${ADMIN_PASSWORD}"
+

@@ -25,13 +25,13 @@ A lightweight, serverless CMS and blog platform built with Cloudflare Pages and 
 
 2. Database Schema
    - Posts table with necessary fields
-   - Media table for file storage
+   - pics table for file storage
 
 3. Basic CRUD API
-   - GET /api/posts (with filtering, pagination)
-   - POST /api/posts
-   - PUT /api/posts/:id
-   - DELETE /api/posts/:id
+   - GET /posts (with filtering, pagination)
+   - POST /posts
+   - PUT /posts/:id
+   - DELETE /posts/:id
 
 4. Basic Authentication System leveraging Cloudflare Secrets
    - JWTs
@@ -64,6 +64,22 @@ A lightweight, serverless CMS and blog platform built with Cloudflare Pages and 
    - Deployment guide
 
 ## Project Structure
+
+### Overall structure
+cloudflare-cms/
+├── README.md              # Main project overview
+├── docs/                  # Detailed documentation directory
+│   ├── api.md            # API specifications
+│   ├── websocket.md      # WebSocket protocol documentation
+│   └── data-models.md    # Data structures and schemas
+├── worker/               
+│   └── README.md         # Worker-specific setup and development
+├── admin/               
+│   └── README.md         # Admin panel setup and development
+└── blog/                 
+    └── README.md         # Blog frontend setup and development
+    
+### 1 Worker sub-directory:
 cloudflare-cms/
 ├── worker/ # Backend API
 │ ├── src/
@@ -74,7 +90,7 @@ cloudflare-cms/
 ├── shared/ # Shared types/utilities
 └── public/ # Public assets
 
-### Admin sub-directory structure
+### 2 Admin sub-directory:
 cloudflare-cms/admin/
 ├── src/
 │   ├── routes/
@@ -93,65 +109,57 @@ cloudflare-cms/admin/
 ├── vite.config.ts              # Vite configuration
 └── package.json                # Project dependencies
 
-
-## API Endpoints
-
-### Implemented
-typescript
-GET /api/health # Health check
-GET /api/posts # List posts (with filtering)
-POST /api/posts # Create post
-PUT /api/posts/:id # Update post
-DELETE /api/posts/:id # Delete post
-
-### Planned
-typescript
-POST /api/auth/login # Login
-POST /api/upload # File upload
-GET /api/media # List media
-DELETE /api/media/:id # Delete media
+### 3 Blog sub-directory:
+cloudflare-cms/blog/
+├── LICENSE
+├── README.md
+├── api.ts
+├── bun.lockb
+├── lib
+│   └── assets
+├── package-lock.json
+├── package.json
+├── playwright.config.js
+├── src
+│   ├── app.d.ts
+│   ├── app.html
+│   ├── app.scss
+│   ├── content
+│   ├── hooks.server.js
+│   ├── index.test.js
+│   ├── lib
+│   ├── routes
+│   └── variables.scss
+├── static
+│   ├── favicon.png
+│   └── favicon.svg
+├── svelte.config.js
+├── tests
+│   └── test.js
+├── tsconfig.json
+└── vite.config.ts
 
 ## Development Setup
 1. Clone repository
 2. Install dependencies: `npm install`
 3. Create D1 database: `npx wrangler d1 create cms-db`
 4. Update wrangler.toml with your database ID
-5. Run locally: `npx wrangler dev`
+5. Run the worker locally: `npx wrangler dev`
+6. You'll want to use three terminal sessions. One for each service (blog front end, admin portal, cloudflare worker):
 
-## Current Challenges
-1. Implementing secure authentication system
-2. Setting up efficient file upload workflow
-3. Designing user-friendly admin interface
-4. Optimizing image delivery
+    ### Terminal 1 (in worker directory)
+    npx wrangler dev
 
-## Next Steps
-1. Complete authentication system
-2. Implement R2 storage for media files
-3. Begin admin interface development
-4. Set up continuous deployment
+    ### Terminal 2 (in admin directory)
+    npm run dev
 
-## Contributing
-This project is under active development. Please check the issues tab for current tasks or create new ones for bugs/features.
-
-## License
-MIT
+    ### Terminal 3 (in blog directory)
+    npm run dev
 
 ## References
 - [Cloudflare Workers Documentation](https://developers.cloudflare.com/workers/)
 - [Cloudflare D1 Documentation](https://developers.cloudflare.com/d1/)
 - [Cloudflare R2 Documentation](https://developers.cloudflare.com/r2/)
-
-# Notes
-To run the services in a development environment, you'll want to use three terminal sessions. One for each service (blog front end, admin portal, cloudflare worker):
-
-## Terminal 1 (in worker directory)
-npx wrangler dev
-
-## Terminal 2 (in admin directory)
-npm run dev
-
-## Terminal 3 (in blog directory)
-npm run dev
 
 ### Database Management
 
@@ -197,7 +205,7 @@ The database consists of several core tables:
 ### Debugging Database
 ```bash
 # View current database state
-curl http://localhost:8787/api/debug/db
+curl h${API_URL}/debug/db
 
 # Check specific table contents
 npx wrangler d1 execute cms-db --local --command="SELECT * FROM site_config;"
@@ -211,12 +219,6 @@ npx wrangler d1 execute cms-db --local --command="SELECT * FROM site_config;"
 ```bash
 npx wrangler d1 execute cms-db --local --file=./migrations/sql/your_migration.sql
 ```
-
-Project: Cloudflare CMS
-Structure:
-- /admin (Svelte frontend)
-- /blog (Public frontend)
-- /worker (Cloudflare Worker backend)
 
 Key Components:
 1. Media Management
@@ -236,89 +238,12 @@ Key Components:
    - Media table includes: id, filename, r2_key, mime_type, size, created_at
    - Posts table implemented
 
-Recent Work:
-- Fixed media deletion bug by querying DB with r2_key instead of id
-
-Development Environment:
-- Local development using Wrangler
 - Environment variables in .dev.vars for worker
 - Frontend running on localhost:5174
 - Worker running on localhost:8787
 
-1 Started with fixing the Posts functionality
-Implemented proper CRUD operations
-Fixed lastRowId issues with D1 database
-Changed to meta.last_row_id and meta.changes
-
-2 Fixed Media Management
-Implemented upload functionality
-Fixed delete operations
-Debugged issues with R2 storage and D1 database
-Fixed file deletion UI refresh
-
-3 Environment & Database Structure
-Set up proper environment variables
-Configured D1 database tables
-Implemented R2 storage for media files
-Set up proper error handling
-
-4 Authentication
-Implemented JWT-based auth
-Set up proper environment variables
-Rotated secrets after exposure
-
-5 Project Structure
-Monorepo with admin/blog/worker
-Set up proper .gitignore
-Initialized Git repository
-Fixed exposed secrets issue
-
-
-
-
-      
-      // Get all files from database
-      const { results: dbFiles } = await env.DB.prepare(`
-        SELECT * FROM media
-      `).all();
-      
-      console.log('📊 Files in database:', dbFiles);
-      
-      // List all files in R2
-      const r2List = await env.MEDIA_BUCKET.list();
-      console.log('📦 Files in R2:', r2List.objects);
-      
-      // Delete the problematic file from both places
-      await env.DB.prepare(`
-        DELETE FROM media 
-        WHERE r2_key LIKE '%c9675786-a03a-4812-8415-fef038877a7c%'
-      `).run();
-      
-      try {
-        await env.MEDIA_BUCKET.delete('c9675786-a03a-4812-8415-fef038877a7c-Bouy_4 Transparent.png');
-      } catch (e) {
-        console.log('R2 delete error (expected if file already gone):', e);
-      }
-      
-      return new Response(JSON.stringify({
-        message: 'Cleanup completed',
-        dbFiles,
-        r2Files: r2List.objects
-      }), {
-        headers: { 'Content-Type': 'application/json' }
-      });
-      
-    } catch (error) {
-      console.error('Cleanup error:', error);
-      return new Response(JSON.stringify({ error: 'Cleanup failed' }), { 
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-  });
-
-
-  reset the database with ``npm run db:reset`` >> warning! this will delete all the data in the database.
+## Troubleshooting steps:
+If necessary, you can reset the database with ``npm run db:reset`` >> warning! this will delete all the data in the database.
 
 ## Database Management
 
@@ -336,32 +261,10 @@ npm run db:migrate
 npm run db:reset
 ```
 
-### Database Structure
-The database consists of several core tables:
-
-1. `site_config`
-   - Stores site-wide configuration
-   - Contains title, description, and navigation settings
-   - Default values are set in initial migration
-
-2. `posts`
-   - Blog post content and metadata
-   - Includes title, content, slug, and publishing status
-   - Indexed for efficient querying
-
-3. `media`
-   - Tracks uploaded files and their metadata
-   - Links to R2 storage through r2_key
-   - Includes file information like size and mime type
-
-4. `_migrations`
-   - Tracks which migrations have been applied
-   - Prevents duplicate migrations
-
 ### Debugging Database
 ```bash
 # View current database state
-curl http://localhost:8787/api/debug/db
+curl ${API_URL}/debug/db
 
 # Check specific table contents
 npx wrangler d1 execute cms-db --local --command="SELECT * FROM site_config;"
@@ -383,3 +286,24 @@ npx wrangler d1 execute cms-db --local --file=./migrations/sql/0000_initial.sql
 - Include meaningful migration names
 - Test migrations locally before deployment
 - Back up data before running migrations in production
+
+Questions.
+Blog Integration - should I maintain compatibility with existing file-based posts, and if so, how would a user be able to upload a file-based post?
+
+# Then run your migrations again
+npx wrangler d1 execute cms-db --local --file=./migrations/sql/0000_initial.sql && \
+npx wrangler d1 execute cms-db --local --file=./migrations/sql/0001_meals_starter.sql
+The project involves three cloudflare services:
+1. Worker (port 8787): Handles API endpoints, database operations, and WebSocket connections
+2. Admin Panel (port 5173): a Flow-bite Sveltekit based Interface for managing content
+3. Blog (port 4174): Public-facing site based on a separate sveltekit repo
+
+npx wrangler pages deploy .svelte-kit/cloudflare --project-name <name> --commit-dirty=true
+npx wrangler pages deploy .svelte-kit/cloudflare --project-name <name> --commit-dirty=trueUmami integration? https://us.umami.is/share/HwZnyuHQ5Rqz3NWf/refact0r.dev
+
+Things still to do
+- Umami integration? https://us.umami.is/share/HwZnyuHQ5Rqz3NWf/refact0r.dev
+- Color selector for background? 
+- spinning wheel while photos upload? 
+- Multiple users for a single domain. 
+- Users can post and comment on posts, but only those authorized to the domain. 

@@ -1,166 +1,156 @@
-import { router } from './router';
-import { errorHandler } from './middleware/errorHandler';
-import { cors } from './middleware/cors';
-import { getPosts, getPost, createPost, updatePost, deletePost } from './handlers/posts';
-import { requireAuth } from './middleware/auth';
-import { login } from './handlers/auth';
-import { uploadMedia, getMedia, getMediaFile, updateMedia, deleteMedia } from './handlers/media';
-import { debugDatabase } from './handlers/site';
-import { WebSocketHandler } from './websocket'; 
+import { createRouter } from './router';
+import { WebSocketHandler } from './durable_objects/WebSocketHandler';
+import { corsMiddleware } from './middleware/cors';
+import type { Request as CFRequest, Response as CFResponse } from '@cloudflare/workers-types';
+import { API_VSN } from './lib/config';
+import { verify } from '@tsndr/cloudflare-worker-jwt';
+import { handleWebSocketUpgrade } from './lib/websocket';
+import type { Env } from './types';
+
+const router = createRouter();
 
 export { WebSocketHandler };
 
-export interface Env {
-  DB: D1Database;
-  MEDIA_BUCKET: R2Bucket;
-  ENVIRONMENT: string;
-  ADMIN_USERNAME: string;
-  ADMIN_PASSWORD: string;
-  JWT_SECRET: string; 
-  WEBSOCKET_HANDLER: DurableObjectNamespace;
+async function verifyAuth(token: string | undefined, env: Env) {
+  if (!token) return false;
+  
+  try {
+    // First try JWT verification
+    const jwtValid = await verify(token, env.JWT_SECRET);
+    if (jwtValid) return true;
+
+    // If JWT fails, try basic auth
+    const decoded = atob(token);
+    const [email, password] = decoded.split(':');
+    
+    // Split multiple credentials
+    const adminEmails = env.ADMIN_EMAIL.split(',');
+    const adminPasswords = env.ADMIN_PASSWORD.split(',');
+    
+    // Check if any credential pair matches
+    return adminEmails.some((adminEmail, index) => 
+      email === adminEmail.trim() && password === adminPasswords[index].trim()
+    );
+  } catch {
+    return false;
+  }
 }
 
-// Public endpoints
-router.get('/api/media/:key', getMediaFile);
-router.get('/api/health', async () => {
-  return new Response(JSON.stringify({ status: 'ok' }), {
-    headers: { 'Content-Type': 'application/json' },
-  });
-});
-router.get('/api/posts', getPosts);
-router.get('/api/posts/:id', getPost);
+// Add security headers to responses
+function addSecurityHeaders(response: CFResponse): CFResponse {
+  const headers = Object.fromEntries(response.headers.entries());
+  headers['X-Content-Type-Options'] = 'nosniff';
+  headers['X-Frame-Options'] = 'DENY';
+  headers['X-XSS-Protection'] = '1; mode=block';
+  headers['Referrer-Policy'] = 'strict-origin-when-cross-origin';
+  headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains';
+  
+  return new Response(response.body as BodyInit, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
+  }) as unknown as CFResponse;
+}
 
-// Admin endpoints (authenticated)
-router.post('/api/auth/login', login);
-
-// upload media (protected)
-router.post('/api/media/upload', async (request, env, ctx) => {
-  const authResponse = await requireAuth(request, env);
-  if (authResponse) return authResponse;
-  return uploadMedia(request, env);
-});
-
-// create post (protected)
-router.post('/api/posts', async (request, env, ctx) => {
-  const authResponse = await requireAuth(request, env);
-  if (authResponse) return authResponse;
-  return createPost(request, env, ctx);
-});
-
-// get media (protected)
-router.get('/api/media', async (request, env, ctx) => {
-  const authResponse = await requireAuth(request, env);
-  if (authResponse) return authResponse;
-  return getMedia(request, env, ctx);
-});
-
-// update media (protected)
-router.put('/api/media/:id', async (request: Request, env: Env, ctx: ExecutionContext, params: Record<string, string>) => {
-  const authResponse = await requireAuth(request, env);
-  if (authResponse) return authResponse;
-  return updateMedia(request, env, params.id);
-});
-
-// update post (protected)
-router.put('/api/posts/:id', async (request, env, ctx, params) => {
-  const authResponse = await requireAuth(request, env);
-  if (authResponse) return authResponse;
-  return updatePost(request, env, ctx, params);
-});
-
-// delete post (protected)
-router.delete('/api/posts/:id', async (request, env, ctx, params) => {
-  const authResponse = await requireAuth(request, env);
-  if (authResponse) return authResponse;
-  return deletePost(request, env, ctx, params);
-});
-
-// delete media (protected)
-router.delete('/api/media/:id', async (request: Request, env: Env) => {
-  const url = new URL(request.url);
-  const key = url.pathname.split('/').pop();
-  if (!key) return new Response('No key provided', { status: 400 });
-  return deleteMedia(request, env, key);
-});
-
-// Add WebSocket route
-router.get('/ws', async (request: Request, env: Env) => {
-  const id = env.WEBSOCKET_HANDLER.idFromName('default');
-  const handler = env.WEBSOCKET_HANDLER.get(id);
-  return handler.fetch(request);
-});
-
-// debug database
-router.get('/api/debug', debugDatabase);
-
-router.get('/api/debug/tables', async (request: Request, env: Env) => {
-  try {
-    const tables = await env.DB.prepare(`
-      SELECT name FROM sqlite_master WHERE type='table';
-    `).all();
-    
-    const tableDetails = {};
-    
-    // Get details for each table
-    for (const table of tables.results) {
-      const rows = await env.DB.prepare(`
-        SELECT * FROM ${table.name};
-      `).all();
-      
-      tableDetails[table.name] = {
-        count: rows.results.length,
-        rows: rows.results
-      };
-    }
-    
-    return new Response(JSON.stringify({
-      tables: tables.results,
-      details: tableDetails
-    }, null, 2), {
-      headers: { 'Content-Type': 'application/json' }
-    });
-  } catch (error) {
-    return new Response(JSON.stringify({
-      error: 'Debug failed',
-      message: error.message
-    }), { 
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
+router.get('/ws', async (request: CFRequest, env: any) => {
+    return handleWebSocketUpgrade(request, env) as Promise<CFResponse>;
 });
 
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    console.log("🚀 Incoming request:", request.method, request.url);
-    
-    // Skip CORS for WebSocket upgrade requests
-    if (request.headers.get('Upgrade') === 'websocket') {
-      return router.handle(request, env, ctx);
-    }
-    
-    // Apply CORS middleware for non-WebSocket requests
-    const corsHeaders = cors(request);
-
-    // Handle OPTIONS request
-    if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        headers: corsHeaders
-      });
-    }
+  async fetch(request: CFRequest, env: Env, ctx: ExecutionContext): Promise<CFResponse> {
+    const startTime = Date.now();
+    const url = new URL(request.url);
+    const domain = request.headers.get('host') || url.hostname;
     
     try {
-      // Handle the request through our router
-      const response = await router.handle(request, env, ctx);
+      console.log('Handling request for:', url.pathname, 'from domain:', domain);
       
-      // Add CORS headers to response
-      Object.entries(corsHeaders).forEach(([key, value]) => {
-        response.headers.set(key, value);
-      });
-      
-      return response;
-    } catch (error) {
-      return errorHandler(error, corsHeaders);
+      // Handle WebSocket connections
+      if (url.pathname === '/ws') {
+        // Ensure domain parameter is present
+        if (!url.searchParams.has('domain')) {
+          console.log('No domain specified, defaulting to localhost');
+          url.searchParams.set('domain', 'localhost');
+        }
+        
+        const id = env.WEBSOCKET_HANDLER.idFromName('default');
+        const handler = env.WEBSOCKET_HANDLER.get(id);
+        return handler.fetch(request as unknown as Request) as unknown as CFResponse;
+      }
+
+      // Apply CORS middleware to all requests
+      return (corsMiddleware(request, env, async () => {
+        // Skip auth check for non-admin domains, login endpoint and OPTIONS requests
+        const isLoginEndpoint = url.pathname === `${API_VSN}/login`;
+        const isAdminDomain = domain.startsWith('admin.');
+        const needsAuth = isAdminDomain && !isLoginEndpoint && request.method !== 'GET' && request.method !== 'OPTIONS';
+        
+        if (needsAuth) {
+          console.log(`Auth attempt for ${request.method} ${url.pathname} from ${domain}`);
+          const authHeader = request.headers.get('Authorization');
+          if (!authHeader) {
+            console.log('No Authorization header present');
+            return new Response('Unauthorized', { status: 401 }) as unknown as CFResponse;
+          }
+          
+          const token = authHeader.replace('Bearer ', '');
+          console.log('Attempting to verify token:', token.substring(0, 10) + '...');
+          
+          const isValid = await verifyAuth(token, env);
+          console.log('Token verification result:', isValid);
+          
+          if (!isValid) {
+            return new Response('Invalid token', { status: 403 });
+          }
+        }
+
+        const ALLOWED_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'];
+        if (!ALLOWED_METHODS.includes(request.method)) {
+          return new Response('Method Not Allowed', { status: 405 });
+        }
+
+        // Handle API routes
+        if (url.pathname.startsWith('/api/') || 
+            url.pathname.startsWith('/site/') || 
+            url.pathname.startsWith('/pics/') || 
+            url.pathname.startsWith('/posts/') || 
+            url.pathname.startsWith('/animations/') ||
+            url.pathname === '/ws') {
+          // If the path doesn't start with /api/v1, prepend it
+          if (!url.pathname.startsWith(`${API_VSN}`)) {
+            const newUrl = new URL(request.url);
+            newUrl.pathname = `${API_VSN}${url.pathname.startsWith('/') ? '' : '/'}${url.pathname}`;
+            
+            // For GET/HEAD requests, we can create a new request without body
+            if (['GET', 'HEAD'].includes(request.method)) {
+              request = new Request(newUrl.toString(), {
+                method: request.method,
+                headers: Object.fromEntries(request.headers.entries())
+              }) as unknown as CFRequest;
+            } else {
+              // For POST/PUT requests, we need to clone the request and read its body
+              const clonedRequest = request.clone();
+              const arrayBuffer = await clonedRequest.arrayBuffer();
+              request = new Request(newUrl.toString(), {
+                method: clonedRequest.method,
+                headers: Object.fromEntries(clonedRequest.headers.entries()),
+                body: arrayBuffer
+              }) as unknown as CFRequest;
+            }
+          }
+          return addSecurityHeaders(await router.handle(request, env as any, ctx));
+        }
+
+        return new Response('Not Found', { status: 404 }) as unknown as CFResponse;
+      }) as unknown as Promise<CFResponse>);
+    } catch (err) {
+      console.error('Worker error:', err, 'Domain:', request.headers.get('host'));
+      return new Response('Internal Server Error: ' + (err as Error).message, { 
+        status: 500,
+        headers: { 'Content-Type': 'text/plain' }
+      }) as unknown as CFResponse;
+    } finally {
+      console.log(`Request to ${url.pathname} from ${domain} took ${Date.now() - startTime}ms`);
     }
-  },
+  }
 };
