@@ -120,6 +120,27 @@ if [ "$missing_deps" = true ]; then
 fi
 
 # =============================================================================
+# STEP 3.5: Run Local Database Migrations
+# =============================================================================
+echo ""
+echo -e "${YELLOW}Running local database migrations...${NC}"
+cd "$SCRIPT_DIR/worker"
+
+# Run all migration files in order
+for migration in migrations/sql/*.sql; do
+    if [ -f "$migration" ]; then
+        migration_name=$(basename "$migration")
+        # Suppress output, just show success/failure
+        if wrangler d1 execute cms-db-dev --local --file="$migration" > /dev/null 2>&1; then
+            echo -e "${GREEN}  ✓ $migration_name${NC}"
+        else
+            echo -e "${YELLOW}  ⚠ $migration_name (may already be applied)${NC}"
+        fi
+    fi
+done
+cd "$SCRIPT_DIR"
+
+# =============================================================================
 # STEP 4: Start Services
 # =============================================================================
 echo ""
