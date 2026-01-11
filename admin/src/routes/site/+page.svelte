@@ -848,6 +848,7 @@
       <!-- About sections -->
       <div class="space-y-4">
         <h3 class="text-lg font-medium">About Page Sections</h3>
+        <p class="text-sm text-gray-400">Edit sections below, then click "Save Sections" when done</p>
         {#if Array.isArray(localConfig.about_sections)}
           {#each localConfig.about_sections as section, i}
             <div class="border p-4 rounded-lg space-y-4">
@@ -857,15 +858,13 @@
                   bind:value={section.title}
                   placeholder="Section Title"
                   class="flex-grow mr-4"
-                  on:blur={() => handleSubmit()}
                 />
-                <Toggle bind:checked={section.visible} on:change={() => handleSubmit()} />
+                <Toggle bind:checked={section.visible} />
               </div>
               <Textarea
                 bind:value={section.content}
                 placeholder="Section Content"
                 rows={4}
-                on:blur={() => handleSubmit()}
               />
             </div>
           {/each}
@@ -879,6 +878,10 @@
           <Button color="red" on:click={removeLastSection}>
             <iconify-icon icon="mdi:minus" class="mr-2"></iconify-icon>
             Remove Last Section
+          </Button>
+          <Button color="green" on:click={() => handleSubmit()}>
+            <iconify-icon icon="mdi:content-save" class="mr-2"></iconify-icon>
+            Save Sections
           </Button>
         </div>
       </div>
