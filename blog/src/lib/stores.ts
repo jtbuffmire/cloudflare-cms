@@ -1,6 +1,6 @@
 import { writable, type Writable } from 'svelte/store';
 import { WebSocketClient } from './websocket';
-import { WS_BASE, API_VSN } from './config';
+import { WS_BASE } from './config';
 
 const isBrowser = typeof window !== 'undefined';
 
@@ -54,6 +54,7 @@ export interface Post {
     [key: string]: any;
   };
   domain: string;
+  show_date?: boolean;
 }
 
 export interface PicsItem {
@@ -191,16 +192,176 @@ class StoreManager {
 
   private initWebSocket(): void {
     const wsUrl = `${WS_BASE}/ws?domain=${this.currentDomain}`;
-//    console.log('🔌 Initializing WebSocket with URL:', wsUrl, {
-//        WS_BASE,
-//        API_VSN,
-//        currentDomain: this.currentDomain,
-//        environment: import.meta.env.VITE_ENVIRONMENT
-//    });
+    console.log('🔌 Initializing WebSocket with URL:', wsUrl);
     
     this.ws = new WebSocketClient(wsUrl);
     
-    // The WebSocketClient already has error handling via addEventListener
+    // Handle incoming WebSocket messages and update stores
+    this.ws.onMessage = (message: WebSocketMessage) => {
+      console.log('📨 WebSocket message received:', message.type, message);
+      
+      switch (message.type) {
+        case 'connected':
+          console.log('✅ WebSocket connected, session count:', message.sessionCount);
+          break;
+          
+        case 'pong':
+          // Heartbeat response, no action needed
+          break;
+          
+        case 'SITE_CONFIG_UPDATE':
+          console.log('🔄 Updating site config from WebSocket');
+          if (message.data) {
+            siteConfig.set(message.data);
+          }
+          break;
+          
+        case 'BASIC_INFO_UPDATE':
+          console.log('🔄 Updating basic info from WebSocket');
+          if (message.data) {
+            siteConfig.update(config => ({
+              ...config,
+              title: message.data.title ?? config.title,
+              description: message.data.description ?? config.description
+            }));
+          }
+          break;
+          
+        case 'ANIMATION_SCALE_UPDATE':
+          console.log('🔄 Updating animation scale from WebSocket');
+          if (message.data?.scale_factor !== undefined) {
+            siteConfig.update(config => ({
+              ...config,
+              scale_factor: message.data.scale_factor
+            }));
+          }
+          break;
+          
+        case 'POSTS_UPDATE':
+          console.log('🔄 Updating posts from WebSocket');
+          if (message.data?.posts) {
+            posts.set(message.data.posts);
+          }
+          break;
+          
+        case 'POST_UPDATE':
+          console.log('🔄 Updating single post from WebSocket');
+          if (message.data) {
+            posts.update(currentPosts => {
+              const index = currentPosts.findIndex(p => p.id === message.data.id);
+              if (index >= 0) {
+                currentPosts[index] = message.data;
+                return [...currentPosts];
+              }
+              return currentPosts;
+            });
+          }
+          break;
+          
+        case 'POST_CREATE':
+          console.log('🔄 Adding new post from WebSocket');
+          if (message.data) {
+            posts.update(currentPosts => [message.data, ...currentPosts]);
+          }
+          break;
+          
+        case 'POST_DELETE':
+          console.log('🔄 Deleting post from WebSocket');
+          if (message.data?.id) {
+            posts.update(currentPosts => 
+              currentPosts.filter(p => p.id !== message.data.id)
+            );
+          }
+          break;
+          
+        case 'PICS_UPDATE':
+          console.log('🔄 Updating pics from WebSocket');
+          if (message.data?.pics) {
+            pics.set(message.data.pics);
+          }
+          break;
+          
+        case 'PICS_CREATE':
+          console.log('🔄 Adding new pic from WebSocket');
+          if (message.data) {
+            pics.update(currentPics => [message.data, ...currentPics]);
+          }
+          break;
+          
+        case 'PICS_DELETE':
+          console.log('🔄 Deleting pic from WebSocket');
+          if (message.data?.id) {
+            pics.update(currentPics => 
+              currentPics.filter(p => p.id !== message.data.id)
+            );
+          }
+          break;
+          
+        case 'PICS_METADATA_UPDATE':
+          console.log('🔄 Updating pic metadata from WebSocket');
+          if (message.data?.id) {
+            pics.update(currentPics => {
+              const index = currentPics.findIndex(p => p.id === message.data.id);
+              if (index >= 0) {
+                currentPics[index] = { ...currentPics[index], ...message.data };
+                return [...currentPics];
+              }
+              return currentPics;
+            });
+          }
+          break;
+          
+        case 'PICS_CLEANUP':
+          // Cleanup message - just log it
+          console.log('🧹 Pics cleanup notification:', message.data);
+          break;
+          
+        case 'ANIMATIONS_UPDATE':
+          console.log('🔄 Updating animations from WebSocket');
+          if (message.data?.animations) {
+            animations.set(message.data.animations);
+          }
+          break;
+          
+        case 'project_created':
+          console.log('🔄 Adding new project from WebSocket');
+          if (message.data) {
+            projects.update(currentProjects => [message.data, ...currentProjects]);
+          }
+          break;
+          
+        case 'project_updated':
+          console.log('🔄 Updating project from WebSocket');
+          if (message.data) {
+            projects.update(currentProjects => {
+              const index = currentProjects.findIndex(p => p.id === message.data.id);
+              if (index >= 0) {
+                currentProjects[index] = message.data;
+                return [...currentProjects];
+              }
+              return currentProjects;
+            });
+          }
+          break;
+          
+        case 'project_deleted':
+          console.log('🔄 Deleting project from WebSocket');
+          if (message.data?.id) {
+            projects.update(currentProjects => 
+              currentProjects.filter(p => p.id !== message.data.id)
+            );
+          }
+          break;
+          
+        case 'error':
+          console.error('❌ WebSocket server error:', message.data);
+          break;
+          
+        default:
+          console.log('📨 Unknown WebSocket message type:', message.type);
+      }
+    };
+    
     this.ws.connect();
   }
 }

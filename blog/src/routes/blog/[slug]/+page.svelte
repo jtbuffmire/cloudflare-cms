@@ -15,7 +15,28 @@
 	$: currentSlug = $page.params.slug;
 
 	// Find the matching post from our posts store
-	$: post = ($posts || []).find((p): p is Post => p.slug === currentSlug);
+	$: post = ($posts || []).find((p) => p.slug === currentSlug) as unknown as Post;
+	
+	// Find the next post for navigation
+	$: {
+		const sortedPosts = [...($posts || [])].filter(p => p.published).sort((a, b) => {
+			const dateA = new Date(a.published_at || a.created_at).getTime();
+			const dateB = new Date(b.published_at || b.created_at).getTime();
+			return dateB - dateA; // Descending order (newest first)
+		});
+		
+		// Find current post index
+		const currentIndex = sortedPosts.findIndex(p => p.slug === currentSlug);
+		
+		// Find next post (if any)
+		if (currentIndex !== -1 && currentIndex < sortedPosts.length - 1) {
+			nextPost = sortedPosts[currentIndex + 1] as Post;
+		} else {
+			nextPost = null;
+		}
+	}
+	
+	let nextPost: Post | null = null;
 
 	// Watch for post changes that affect visibility
 	$: {
@@ -159,15 +180,21 @@
 	</main>
 {:else if post.published}
 	<main>
+		<a href="/blog" class="nav-link back-link">
+			<span class="arrow">&lt;-</span> blog
+		</a>
+		
 		<article class="post">
 			<header>
 				<h1>
 					{#if metadata.icon}<iconify-icon icon={metadata.icon} />{/if}
 					{post.title}
 				</h1>
-				<time datetime={post.published_at || post.created_at} class="date">
-					{formatDate(post.published_at || post.created_at)}
-				</time>
+				{#if !(post.show_date === 0 || post.show_date === false)}
+					<time datetime={post.published_at || post.created_at} class="date">
+						{formatDate(post.published_at || post.created_at)}
+					</time>
+				{/if}
 				{#if metadata.description}
 					<p class="description">{metadata.description}</p>
 				{/if}
@@ -175,6 +202,14 @@
 			<div class="content" use:imageLoader>
 				{@html parsedContent}
 			</div>
+			
+			{#if nextPost}
+				<footer class="post-navigation">
+					<a href={`/blog/${nextPost.slug}`} class="nav-link next-link">
+						next <span class="arrow">-&gt;</span>
+					</a>
+				</footer>
+			{/if}
 		</article>
 	</main>
 {/if}
@@ -247,5 +282,31 @@
 		padding: 2rem;
 		font-size: 1.2rem;
 		color: var(--txt);
+	}
+	
+	.post-navigation {
+		display: flex;
+		justify-content: space-between;
+		margin-top: 3rem;
+		padding-top: 1rem;
+		border-top: 1px solid var(--surface-2);
+	}
+	
+	.nav-link {
+		font-family: 'Space Mono', monospace;
+		font-size: 1.2rem;
+		color: var(--txt);
+		text-decoration: none;
+		padding: 0.5rem 1rem;
+		border-radius: 4px;
+		transition: background-color 0.2s;
+		
+		&:hover {
+			background-color: var(--surface-2);
+		}
+	}
+	
+	.arrow {
+		display: inline-block;
 	}
 </style>

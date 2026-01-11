@@ -13,7 +13,7 @@ interface ProxyRes extends ServerResponse {
     statusCode: number;
 }
 
-const port = parseInt(process.env.PORT || '4173', 10);
+const port = parseInt(process.env.PORT || '4174', 10);
 const workerUrl = process.env.API_URL || 'http://localhost:8787';
 
 export default defineConfig(({ mode }) => {

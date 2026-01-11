@@ -45,6 +45,7 @@ export interface Post {
   published_at: string;
   created_at: string;
   updated_at: string;
+  show_date?: boolean | number;
 }
 
 export interface Project {

@@ -14,6 +14,159 @@ A lightweight, serverless CMS and blog platform built with Cloudflare Pages and 
 - Storage: Cloudflare R2
 - Authentication: Custom JWT implementation
 
+## Project Structure
+This is a monorepo containing three independent but interconnected services:
+
+### 1. Worker (`/worker`)
+Backend API handling data storage, authentication, and business logic.
+- Main file: `src/index.ts`
+- Database interactions through Cloudflare D1
+- Media storage via Cloudflare R2
+- JWT authentication
+
+### 2. Admin Panel (`/admin`) 
+Content management interface for administrators.
+- Built with SvelteKit
+- Tailwind CSS for styling
+- Rich text editor for content creation
+- Media management
+
+### 3. Blog (`/blog`)
+Public-facing frontend for content consumption.
+- Built with SvelteKit
+- Responsive design
+- SEO optimized
+- Fast page loads
+
+## Development Setup
+
+### Prerequisites
+- Node.js 18+
+- npm or yarn
+- Cloudflare account with Workers, D1, and R2 access
+
+### Environment Setup
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/cloudflare-cms.git
+   cd cloudflare-cms
+   ```
+
+2. Install dependencies for all services:
+   ```bash
+   # Worker dependencies
+   cd worker && npm install
+   
+   # Admin panel dependencies
+   cd ../admin && npm install
+   
+   # Blog dependencies
+   cd ../blog && npm install
+   
+   # Return to root
+   cd ..
+   ```
+
+3. Set up your database:
+   ```bash
+   # Create development database
+   cd worker
+   npx wrangler d1 create cms-db-dev
+   
+   # Initialize schema
+   npm run db:reset:dev
+   ```
+
+### Running the Project
+You'll need three terminal sessions, one for each service:
+
+```bash
+# Terminal 1 (worker - backend API)
+cd worker
+npm run dev  # Runs on localhost:8787
+
+# Terminal 2 (admin - content management)
+cd admin
+npm run dev  # Runs on localhost:5173
+
+# Terminal 3 (blog - public frontend)
+cd blog
+npm run dev  # Runs on localhost:4173
+```
+
+## Database Management
+
+We use a standardized naming convention for databases:
+- `cms-db-dev`: Local development database
+- `cms-db-test`: Testing environment database
+- `cms-db-prod`: Production database
+
+### Database Operations
+
+```bash
+# Reset development database (WARNING: Deletes all data)
+cd worker
+npm run db:reset:dev
+
+# Create a backup of production database
+npm run db:backup
+
+# Run migrations
+npm run db:migrate
+```
+
+## Deployment
+
+### Production Deployment
+```bash
+# Deploy the Worker
+cd worker
+npm run deploy
+
+# Deploy the Admin Panel
+cd ../admin
+npm run deploy
+
+# Deploy the Blog
+cd ../blog
+npm run deploy
+```
+
+### Environment Management
+Update the appropriate environment variables in your Cloudflare dashboard or using Wrangler:
+
+```bash
+# Set production secrets
+cd worker
+wrangler secret put JWT_SECRET --env production
+wrangler secret put ADMIN_EMAIL --env production
+wrangler secret put ADMIN_PASSWORD --env production
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Database connection errors**
+   - Verify your database ID in wrangler.toml
+   - Check that migrations have been run
+   - Try resetting the database: `npm run db:reset:dev`
+
+2. **Authentication failures**
+   - Verify JWT_SECRET is set correctly
+   - Check admin credentials
+   - Tokens expire after 24 hours by default
+
+3. **Media upload issues**
+   - Verify R2 bucket configuration
+   - Check storage permissions
+
+## Contributing
+Please see CONTRIBUTING.md for development guidelines and code standards.
+
+## License
+MIT
+
 ## Current Progress
 
 ### ✅ Completed
@@ -139,10 +292,17 @@ cloudflare-cms/blog/
 ├── tsconfig.json
 └── vite.config.ts
 
+### Environment Configuration
+The database name is configurable through environment variables:
+- `database_name`: Name of the D1 database (defaults to "cms-db-test" for local development)
+- `DATABASE_ID`: The Cloudflare D1 database ID
+
+These can be set in `.dev.vars` for local development.
+
 ## Development Setup
 1. Clone repository
 2. Install dependencies: `npm install`
-3. Create D1 database: `npx wrangler d1 create cms-db`
+3. Create D1 database: `npx wrangler d1 create <<DB-NAME>>`
 4. Update wrangler.toml with your database ID
 5. Run the worker locally: `npx wrangler dev`
 6. You'll want to use three terminal sessions. One for each service (blog front end, admin portal, cloudflare worker):
@@ -173,11 +333,11 @@ npx wrangler d1 create cms-db
 # Run all migrations
 npm run db:migrate
 
-# Reset database (WARNING: This will delete all data)
+# Reset database with environment configuration (WARNING: This will delete all data)
 npm run db:reset
 
-# Blow up the database (WARNING: This will delete all data)
-npx wrangler d1 execute cms-db --local --file=/Users/jt/cloudflare-cms/worker/migrations/sql/0000_initial.sql
+# Override database name for a specific reset
+database_name=custom-db-name npm run db:reset
 ```
 
 ### Database Structure

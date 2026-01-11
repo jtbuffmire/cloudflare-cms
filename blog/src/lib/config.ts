@@ -3,9 +3,12 @@ export const API_VSN = import.meta.env.VITE_API_VSN || '/api/v1';
 
 // Ensure consistent slashes between base and version
 export function getApiBase(): string {
-    if (typeof window === 'undefined') return '';
     if (import.meta.env.DEV) {
         return 'http://localhost:8787';
+    }
+    if (typeof window === 'undefined') {
+        // During SSR in production, use environment variable or default
+        return import.meta.env.VITE_API_URL || 'http://localhost:8787';
     }
     const hostname = window.location.hostname;
     const domain = hostname.replace('www.', '');
@@ -45,7 +48,11 @@ export const WS_URL = `${WS_BASE}/ws`;
 
 // Domain Configuration
 export const getDomain = () => {
-    if (typeof window === 'undefined') return '';
+    if (typeof window === 'undefined') {
+        // During SSR, default to localhost for development
+        // In production, the worker will use the Host header
+        return import.meta.env.DEV ? 'localhost' : 'localhost';
+    }
     const hostname = window.location.hostname;
     return hostname.replace('www.', '');
 };

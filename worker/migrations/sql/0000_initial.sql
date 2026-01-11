@@ -1,19 +1,11 @@
--- Drop existing indexes if they exist
-DROP INDEX IF EXISTS idx_posts_published;
-DROP INDEX IF EXISTS idx_posts_created_at;
-DROP INDEX IF EXISTS idx_posts_slug;
-DROP INDEX IF EXISTS idx_pics_filename;
-DROP INDEX IF EXISTS idx_pics_created_at;
-DROP INDEX IF EXISTS idx_pics_hash;
+-- ============================================================================
+-- WARNING: This migration should ONLY be run on a fresh/empty database!
+-- It is NOT safe to re-run on a database with existing data.
+-- The deploy script checks _migrations table and will skip this if already applied.
+-- ============================================================================
 
--- Drop existing tables in reverse dependency order
-DROP TABLE IF EXISTS site_config;
-DROP TABLE IF EXISTS pics;
-DROP TABLE IF EXISTS pics_metadata;
-DROP TABLE IF EXISTS posts;
-DROP TABLE IF EXISTS animations;
-DROP TABLE IF EXISTS users;
-DROP TABLE IF EXISTS _migrations;
+-- NOTE: DROP statements removed - they destroyed production data!
+-- If you need to reset a database, use D1 Time Travel or manual drops.
 
 -- Create migrations table
 CREATE TABLE IF NOT EXISTS _migrations (
@@ -175,21 +167,21 @@ CREATE INDEX IF NOT EXISTS idx_pics_taken_at ON pics(domain, taken_at);
 CREATE INDEX IF NOT EXISTS idx_pics_tags ON pics(domain, tags);
 CREATE INDEX IF NOT EXISTS idx_pics_category ON pics(domain, category);
 
--- Insert default users
-INSERT INTO users (id, email, password, domain, role) 
+-- Insert default users (use OR IGNORE to be idempotent)
+INSERT OR IGNORE INTO users (id, email, password, domain, role) 
 VALUES 
     ('usr_default_localhost', 'admin@localhost', 'password', 'localhost', 'admin'),
     ('usr_default_buffmire', 'admin@buffmire.com', 'CHANGE_THIS_PASSWORD', 'buffmire.com', 'admin'),
     ('usr_default_mealsonwheels', 'admin@mealsonwheels.com', 'CHANGE_THIS_PASSWORD', 'mealsonwheels.com', 'admin');
 
--- Insert default animations for each domain
-INSERT INTO animations (domain, name, r2_key, scale_factor) VALUES 
+-- Insert default animations for each domain (use OR IGNORE to be idempotent)
+INSERT OR IGNORE INTO animations (domain, name, r2_key, scale_factor) VALUES 
     ('buffmire.com', 'default-pin', 'animations/default-pin.json', 100),
     ('mealsonwheels.com', 'default-pin', 'animations/default-pin.json', 100),
     ('localhost', 'default-pin', 'animations/default-pin.json', 100);
 
--- Insert default site config for each domain
-INSERT INTO site_config (
+-- Insert default site config for each domain (use OR IGNORE to be idempotent)
+INSERT OR IGNORE INTO site_config (
     domain,
     title, 
     description, 

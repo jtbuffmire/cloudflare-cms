@@ -174,6 +174,7 @@
   let slug = '';
   let content = '';
   let markdown_content = '';
+  let show_date = true;
   let metadata = {
     description: '',
     tags: [] as string[],
@@ -238,7 +239,8 @@
           markdown_content,
           html_content,
           metadata,
-          published: true
+          published: true,
+          show_date
         })
       });
 
@@ -387,6 +389,12 @@
               <Button color="dark" on:click={() => showIconSelector = !showIconSelector}>
                 Change Icon
               </Button>
+            </div>
+            <div class="mt-4">
+              <Label class="inline-flex items-center">
+                <input type="checkbox" bind:checked={show_date} class="form-checkbox h-5 w-5 text-blue-600 bg-gray-700 border-gray-600 rounded" />
+                <span class="ml-2 text-gray-100">Show date on post</span>
+              </Label>
             </div>
           </div>
         </div>

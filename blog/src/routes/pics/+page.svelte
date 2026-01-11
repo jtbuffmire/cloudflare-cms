@@ -36,10 +36,10 @@
 		return picUrl.toString();
 	}
 
-	// Handle image load event
+	// Handle image load event - fade in loaded images
 	function handleImageLoad(event: Event) {
 		const img = event.currentTarget as HTMLImageElement;
-		img.style.opacity = '1';
+		img.classList.add('loaded');
 	}
 
 	// Debug raw picture data
@@ -74,13 +74,25 @@
     $: console.log('📸 Filtered images:', images.length);
 </script>
 
+<svelte:head>
+	{#if images[0]}
+		<!-- Preload LCP image for faster rendering -->
+		<link 
+			rel="preload" 
+			as="image" 
+			href={images[0].sources.webp || images[0].sources.avif || images[0].img.src}
+			type={images[0].sources.webp ? 'image/webp' : images[0].sources.avif ? 'image/avif' : undefined}
+		/>
+	{/if}
+</svelte:head>
+
 <main>
 	<h1>pics</h1>
 	{#if $siteConfig?.pics_description}
 		<p class="description">{$siteConfig.pics_description}</p>
 	{/if}
 	<br />
-	{#each images as image}
+	{#each images as image, index}
 		<picture>
 			{#if image.sources.avif}
 				<source srcset={image.sources.avif} type="image/avif" />
@@ -88,10 +100,13 @@
 			{#if image.sources.webp}
 				<source srcset={image.sources.webp} type="image/webp" />
 			{/if}
+			<!-- First 2 images load eagerly for LCP, rest lazy load -->
 			<img
 				src={image.img.src}
 				alt={image.text_description || ''}
-				loading="lazy"
+				loading={index < 2 ? 'eager' : 'lazy'}
+				fetchpriority={index === 0 ? 'high' : 'auto'}
+				decoding={index < 2 ? 'sync' : 'async'}
 				on:load={handleImageLoad}
 				width={image.img.w}
 				height={image.img.h}
@@ -119,9 +134,19 @@
 		display: block;
 		margin-bottom: 0.5rem;
 	}
-	img {
+	/* First 2 images show immediately for better LCP */
+	picture:nth-child(-n+2) img {
+		opacity: 1;
+	}
+	/* Lazy-loaded images fade in */
+	picture:nth-child(n+3) img {
 		transition: opacity 0.2s;
 		opacity: 0;
+	}
+	picture:nth-child(n+3) img.loaded {
+		opacity: 1;
+	}
+	img {
 		width: 100%;
 		height: auto;
 	}

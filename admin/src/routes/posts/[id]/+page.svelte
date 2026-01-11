@@ -319,6 +319,12 @@
                   Change Icon
                 </Button>
               </div>
+              <div class="mt-4">
+                <Label class="inline-flex items-center">
+                  <input type="checkbox" bind:checked={post.show_date} class="form-checkbox h-5 w-5 text-blue-600 bg-gray-700 border-gray-600 rounded" />
+                  <span class="ml-2 text-gray-100">Show date on post</span>
+                </Label>
+              </div>
             </div>
           </div>
 

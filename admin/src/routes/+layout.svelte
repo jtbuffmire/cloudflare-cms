@@ -64,8 +64,9 @@
   onMount(() => {
     // Check domain after component is mounted
     if (dev) {
-      isAdminDomain = window.location.port === '5174';
-      mainDomain = 'http://localhost:5173';
+      // In development, admin runs on port 5173
+      isAdminDomain = window.location.port === '5173';
+      mainDomain = 'http://localhost:4174';  // Blog is on 4174
     } else {
       isAdminDomain = window.location.hostname.startsWith('admin.');
       mainDomain = `https://${DOMAIN}`;

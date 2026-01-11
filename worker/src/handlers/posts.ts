@@ -26,6 +26,7 @@ interface CreatePostBody {
     [key: string]: any;
   };
   published?: boolean;
+  show_date?: boolean;
 }
 
 interface UpdatePostBody {
@@ -41,6 +42,7 @@ interface UpdatePostBody {
     [key: string]: any;
   };
   published?: boolean;
+  show_date?: boolean;
 }
 
 export async function getPosts(
@@ -137,6 +139,7 @@ export async function createPost(
       metadata?: Record<string, any>;
       published?: boolean;
       domain?: string;
+      show_date?: boolean;
     };
 
     // Force the domain from the header
@@ -199,8 +202,9 @@ export async function createPost(
         html_content,
         metadata,
         published,
-        domain
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        domain,
+        show_date
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .bind(
       data.title, 
@@ -210,7 +214,8 @@ export async function createPost(
       data.html_content || null,
       JSON.stringify(data.metadata),
       data.published ? 1 : 0,
-      data.domain
+      data.domain,
+      data.show_date === false ? 0 : 1
     )
     .run();
 
@@ -225,7 +230,8 @@ export async function createPost(
       html_content: data.html_content,
       metadata: data.metadata,
       published: data.published,
-      domain: data.domain
+      domain: data.domain,
+      show_date: data.show_date === false ? false : true
     };
 
     // Broadcast creation
@@ -362,6 +368,10 @@ export async function updatePost(
         updates.push('published_at = ?');
         values.push(new Date().toISOString());
       }
+    }
+    if (body.show_date !== undefined) {
+      updates.push('show_date = ?');
+      values.push(body.show_date ? 1 : 0);
     }
 
     if (updates.length === 0) {

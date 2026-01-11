@@ -1,7 +1,0 @@
-JWT_SECRET="r84EyEyDyK976+T/UshwI23qMYqfwFKBe5/j2Y19VK8="
-ADMIN_USERNAME="admin@admin.com"
-ADMIN_PASSWORD="password"
-ENVIRONMENT=development
-DATABASE_ID="e425276a-525d-41d5-bc6a-9e2c17744ef5"
-INTERNAL_URL=http://localhost:8787
-BLOG_URL=http://localhost:5173

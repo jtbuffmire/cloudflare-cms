@@ -10,6 +10,7 @@ export interface Post {
   created_at: string;
   updated_at: string;
   domain?: string;
+  show_date?: boolean;
   metadata?: {
     description?: string;
     tags?: string[];

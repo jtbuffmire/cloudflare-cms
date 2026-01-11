@@ -1,16 +1,16 @@
--- Insert initial tenant users
-INSERT INTO users (id, email, password, domain, role) 
+-- Insert initial tenant users (use OR IGNORE to be idempotent)
+INSERT OR IGNORE INTO users (id, email, password, domain, role) 
 VALUES 
     ('usr_default_buffmire', 'jameson@buffmire.com', 'badpassword', 'buffmire.com', 'admin'),
     ('usr_default_mealsonwheels', 'ameliaqc@gmail.com', 'lovesmustard', 'mealsonwheels.com', 'admin');
 
--- Insert tenant animations
-INSERT INTO animations (domain, name, r2_key) VALUES 
+-- Insert tenant animations (use OR IGNORE to be idempotent)
+INSERT OR IGNORE INTO animations (domain, name, r2_key) VALUES 
     ('buffmire.com', 'default-pin', 'animations/default-pin.json'),
     ('mealsonwheels.com', 'default-pin', 'animations/default-pin.json');
 
--- Insert tenant site configs
-INSERT INTO site_config (
+-- Insert tenant site configs (use OR IGNORE to be idempotent)
+INSERT OR IGNORE INTO site_config (
     domain,
     title, 
     description, 

@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { WebSocketClient } from '$lib/websocket';
-	import { siteConfig, posts, pics, animations } from '$lib/stores';
+	import { siteConfig, posts, pics, animations, storeManager } from '$lib/stores';
 	import type { SiteConfig, Post, PicsItem, Animation, AnimationsResponse } from '$lib/stores';
 	import { page } from '$app/stores';
 	import '../app.scss';
@@ -50,7 +49,14 @@
 
 	// Update stores with data
 	$: if (data.siteConfig) siteConfig.set(data.siteConfig);
-	$: if (data.posts) posts.set(data.posts);
+	$: if (data.posts) {
+		console.log('Setting posts with show_date values:', data.posts.map(p => ({ 
+			id: p.id, 
+			title: p.title, 
+			show_date: p.show_date 
+		})));
+		posts.set(data.posts);
+	}
 	$: if (data.pics) pics.set(data.pics);
 	$: if (data.animations) animations.set(data.animations);
 
@@ -114,12 +120,8 @@
 		return { x: `${isIn ? '' : '-'}${xDiff * 20}vh`, y: `${isIn ? '' : '-'}${yDiff * 20}vh` };
 	}
 
-	let ws: WebSocketClient;
-
-	onMount(() => {
-		ws = new WebSocketClient();
-		return () => ws.close();
-	});
+	// WebSocket connection is managed by storeManager (initialized in stores.ts)
+	// No need to create a separate connection here
 </script>
 
 <svelte:head>

@@ -718,15 +718,8 @@
 
   <form on:submit={handleSubmit} class="space-y-6">
     <div class="border p-4 rounded-lg">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-bold">Basic Information</h2>
-        <button 
-          class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-          on:click={updateBasicInfo}
-        >
-          Send It
-        </button>
-      </div>
+      <h2 class="text-xl font-bold mb-4">Basic Information</h2>
+      <p class="text-sm text-gray-400 mb-4">Changes save automatically when you click outside the field</p>
       <div class="mb-4">
         <label class="block text-gray-700 text-sm font-bold mb-2" for="site-title">
           Site Title
@@ -736,6 +729,7 @@
           type="text"
           class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
           bind:value={localConfig.title}
+          on:blur={updateBasicInfo}
         />
       </div>
       <div class="mb-4">
@@ -746,6 +740,7 @@
           id="site-description"
           class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
           bind:value={localConfig.description}
+          on:blur={updateBasicInfo}
         ></textarea>
       </div>
     </div>
@@ -845,6 +840,7 @@
     <!-- About Section -->
     <div class="border p-4 rounded-lg">
       <h2 class="text-xl font-semibold mb-4">About Page</h2>
+      <p class="text-sm text-gray-400 mb-4">Changes save automatically when you click outside the field</p>
       
       <!-- About Page Description -->
       <div class="space-y-4 mb-6">
@@ -854,6 +850,7 @@
           bind:value={localConfig.about_description}
           placeholder="Main description for the About page..."
           rows={4}
+          on:blur={() => handleSubmit()}
         />
       </div>
 
@@ -869,13 +866,15 @@
                   bind:value={section.title}
                   placeholder="Section Title"
                   class="flex-grow mr-4"
+                  on:blur={() => handleSubmit()}
                 />
-                <Toggle bind:checked={section.visible} />
+                <Toggle bind:checked={section.visible} on:change={() => handleSubmit()} />
               </div>
               <Textarea
                 bind:value={section.content}
                 placeholder="Section Content"
                 rows={4}
+                on:blur={() => handleSubmit()}
               />
             </div>
           {/each}
@@ -897,6 +896,7 @@
     <!-- Contact Section -->
     <div class="border p-4 rounded-lg">
       <h2 class="text-xl font-semibold mb-4">Contact Information</h2>
+      <p class="text-sm text-gray-400 mb-4">Changes save automatically when you click outside the field</p>
       
       <!-- Contact Description -->
       <div class="space-y-4 mb-6">
@@ -906,6 +906,7 @@
           bind:value={localConfig.contact_description}
           placeholder="Main description for the Contact page..."
           rows={3}
+          on:blur={() => handleSubmit()}
         />
       </div>
 
@@ -917,6 +918,7 @@
             id="web3forms_key"
             bind:value={localConfig.web3forms_key}
             placeholder="Enter your Web3Forms API key"
+            on:blur={() => handleSubmit()}
           />
           <p class="text-sm text-gray-500">Get your API key at <a href="https://web3forms.com/" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline">web3forms.com</a></p>
         </div>
@@ -931,11 +933,12 @@
               id="contact_email"
               bind:value={localConfig.contact_email}
               placeholder="your@email.com"
+              on:blur={() => handleSubmit()}
             />
           </div>
           <div class="flex items-center">
             <span class="mr-2">Show Email</span>
-            <Toggle bind:checked={localConfig.show_email} />
+            <Toggle bind:checked={localConfig.show_email} on:change={() => handleSubmit()} />
           </div>
         </div>
       </div>
@@ -949,11 +952,12 @@
               id="contact_discord"
               bind:value={localConfig.contact_discord_handle}
               placeholder="username#1234"
+              on:blur={() => handleSubmit()}
             />
           </div>
           <div class="flex items-center">
             <span class="mr-2">Show Discord</span>
-            <Toggle bind:checked={localConfig.show_discord} />
+            <Toggle bind:checked={localConfig.show_discord} on:change={() => handleSubmit()} />
           </div>
         </div>
       </div>
@@ -967,11 +971,12 @@
               id="contact_instagram"
               bind:value={localConfig.contact_instagram_handle}
               placeholder="@username"
+              on:blur={() => handleSubmit()}
             />
           </div>
           <div class="flex items-center">
             <span class="mr-2">Show Instagram</span>
-            <Toggle bind:checked={localConfig.show_instagram} />
+            <Toggle bind:checked={localConfig.show_instagram} on:change={() => handleSubmit()} />
           </div>
         </div>
         <div>
@@ -980,6 +985,7 @@
             id="contact_instagram_url"
             bind:value={localConfig.contact_instagram_url}
             placeholder="https://instagram.com/username"
+            on:blur={() => handleSubmit()}
           />
         </div>
       </div>
@@ -988,6 +994,7 @@
     <!-- Pics Section -->
     <div class="border p-4 rounded-lg">
       <h2 class="text-xl font-semibold mb-4">Pictures Page</h2>
+      <p class="text-sm text-gray-400 mb-4">Changes save automatically when you click outside the field</p>
       
       <!-- Pics Description -->
       <div class="space-y-4">
@@ -997,13 +1004,11 @@
           bind:value={localConfig.pics_description}
           placeholder="Description for your pictures gallery..."
           rows={3}
+          on:blur={() => handleSubmit()}
         />
       </div>
     </div>
 
-    <Button type="submit" disabled={loading}>
-      {loading ? 'Saving...' : 'Save Configuration'}
-    </Button>
   </form>
 </div>
 
