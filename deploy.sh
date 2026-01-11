@@ -371,8 +371,21 @@ if [ "$DEPLOY_WORKER" = true ]; then
     
     if [ "$DRY_RUN" = true ]; then
         echo -e "${YELLOW}[DRY RUN] Would deploy worker${NC}"
+        echo -e "${YELLOW}[DRY RUN] Would sync secrets: JWT_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD, ALLOWED_ORIGINS, ENVIRONMENT${NC}"
     else
         cd "$SCRIPT_DIR/worker"
+        
+        # Sync secrets from .env.production
+        echo -e "${CYAN}Syncing secrets to Cloudflare...${NC}"
+        
+        # Use heredoc to pass secrets to wrangler (avoids command line exposure)
+        echo "$JWT_SECRET" | wrangler secret put JWT_SECRET --quiet 2>/dev/null && echo -e "${GREEN}  ✓ JWT_SECRET${NC}" || echo -e "${YELLOW}  ⚠ JWT_SECRET (may already exist)${NC}"
+        echo "$ADMIN_EMAIL" | wrangler secret put ADMIN_EMAIL --quiet 2>/dev/null && echo -e "${GREEN}  ✓ ADMIN_EMAIL${NC}" || echo -e "${YELLOW}  ⚠ ADMIN_EMAIL${NC}"
+        echo "$ADMIN_PASSWORD" | wrangler secret put ADMIN_PASSWORD --quiet 2>/dev/null && echo -e "${GREEN}  ✓ ADMIN_PASSWORD${NC}" || echo -e "${YELLOW}  ⚠ ADMIN_PASSWORD${NC}"
+        echo "$ALLOWED_ORIGINS" | wrangler secret put ALLOWED_ORIGINS --quiet 2>/dev/null && echo -e "${GREEN}  ✓ ALLOWED_ORIGINS${NC}" || echo -e "${YELLOW}  ⚠ ALLOWED_ORIGINS${NC}"
+        echo "$ENVIRONMENT" | wrangler secret put ENVIRONMENT --quiet 2>/dev/null && echo -e "${GREEN}  ✓ ENVIRONMENT${NC}" || echo -e "${YELLOW}  ⚠ ENVIRONMENT${NC}"
+        
+        echo ""
         
         # Deploy to production (default config now uses production database)
         if wrangler deploy; then
