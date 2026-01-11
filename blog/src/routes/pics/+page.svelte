@@ -109,15 +109,15 @@
 		margin-bottom: 0.5rem;
 	}
 	/* First 2 images show immediately for better LCP */
-	picture:nth-child(-n+2) img {
+	picture:nth-of-type(-n+2) img {
 		opacity: 1;
 	}
 	/* Lazy-loaded images fade in */
-	picture:nth-child(n+3) img {
+	picture:nth-of-type(n+3) img {
 		transition: opacity 0.2s;
 		opacity: 0;
 	}
-	picture:nth-child(n+3) img.loaded {
+	picture:nth-of-type(n+3) img.loaded {
 		opacity: 1;
 	}
 	img {
