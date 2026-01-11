@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { siteConfig, pics } from '$lib/stores';
-	import { API_BASE, API_VSN, getDefaultHeaders } from '$lib/config';
+	import { API_BASE, API_VSN } from '$lib/config';
 	import { browser } from '$app/environment';
 
 	// Get the current domain from the browser URL
@@ -26,10 +25,6 @@
 		return picUrl.toString();
 	}
 
-	function handleImageLoad(event: Event) {
-		const img = event.currentTarget as HTMLImageElement;
-		img.classList.add('loaded');
-	}
 
 	$: images = ($pics || [])
 		.filter(item => item.published && item.show_in_pics)
@@ -81,7 +76,6 @@
 				loading={index < 2 ? 'eager' : 'lazy'}
 				fetchpriority={index === 0 ? 'high' : 'auto'}
 				decoding={index < 2 ? 'sync' : 'async'}
-				on:load={handleImageLoad}
 				width={image.img.w}
 				height={image.img.h}
 			/>
@@ -107,18 +101,6 @@
 	picture {
 		display: block;
 		margin-bottom: 0.5rem;
-	}
-	/* First 2 images show immediately for better LCP */
-	picture:nth-of-type(-n+2) img {
-		opacity: 1;
-	}
-	/* Lazy-loaded images fade in */
-	picture:nth-of-type(n+3) img {
-		transition: opacity 0.2s;
-		opacity: 0;
-	}
-	picture:nth-of-type(n+3) img.loaded {
-		opacity: 1;
 	}
 	img {
 		width: 100%;
