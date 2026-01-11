@@ -382,6 +382,15 @@ export async function updateSiteConfig(
       .bind(domain)
       .first() as SiteConfigRow;
 
+    // Parse about_sections from the stored JSON
+    const headers = updatedRow.about_section_headers ? JSON.parse(updatedRow.about_section_headers as string) : [];
+    const contents = updatedRow.about_section_contents ? JSON.parse(updatedRow.about_section_contents as string) : [];
+    const about_sections = headers.map((header: any, i: number) => ({
+      title: header.title,
+      visible: Boolean(header.visible),
+      content: contents[i]?.content?.text ?? ''
+    })) || [];
+
     // Convert row to config object
     const updatedConfig = {
       id: updatedRow.id,
@@ -393,7 +402,7 @@ export async function updateSiteConfig(
       lottie_animation: updatedRow.lottie_animation || '',
       lottie_animation_r2_key: updatedRow.lottie_animation_r2_key,
       about_description: updatedRow.about_description || '',
-      about_sections: [],
+      about_sections,
       pics_description: updatedRow.pics_description || '',
       contact_description: updatedRow.contact_description || '',
       contact_email: updatedRow.contact_email || '',
