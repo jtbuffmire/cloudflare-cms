@@ -17,32 +17,6 @@ export function getApiBase(): string {
 
 export const API_BASE = getApiBase();
 export const API_TIMEOUT = 5000;
-
-// Debug logs after all declarations
-console.log('📦 All environment variables:', {
-    MODE: import.meta.env.MODE,
-    BASE_URL: import.meta.env.BASE_URL,
-    PROD: import.meta.env.PROD,
-    DEV: import.meta.env.DEV,
-    SSR: import.meta.env.SSR,
-    ALL_ENV: Object.fromEntries(Object.entries(import.meta.env)),
-    VITE_VARS: Object.fromEntries(
-        Object.entries(import.meta.env)
-            .filter(([key]) => key.startsWith('VITE_'))
-    )
-});
-
-// console.log('📝 Blog Configuration:', {
-//     API_BASE,
-//     API_TIMEOUT,
-//     ENV_VARS: {
-//         VITE_API_URL: import.meta.env.VITE_API_URL,
-//         MODE: import.meta.env.MODE,
-//         DEV: import.meta.env.DEV,
-//         PROD: import.meta.env.PROD,
-//     }
-// });
-
 export const WS_BASE = API_BASE.replace('http://', 'ws://').replace('https://', 'wss://');
 export const WS_URL = `${WS_BASE}/ws`;
 
@@ -58,40 +32,20 @@ export const getDomain = () => {
 };
 
 // Request Configuration
-export const getDefaultHeaders = () => {
-    const headers = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'X-Site-Domain': getDomain()
-    };
-    // console.log('📨 Default headers:', headers);
-    return headers;
-};
+export const getDefaultHeaders = () => ({
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'X-Site-Domain': getDomain()
+});
 
-export const getRequestInit = (options: RequestInit = {}): RequestInit => {
-    const init: RequestInit = {
-        ...options,
-        credentials: 'include' as RequestCredentials,
-        headers: {
-            ...getDefaultHeaders(),
-            ...options.headers
-        }
-    };
-    // console.log('🔧 Request init configuration:', init);
-    return init;
-};
+export const getRequestInit = (options: RequestInit = {}): RequestInit => ({
+    ...options,
+    credentials: 'include' as RequestCredentials,
+    headers: {
+        ...getDefaultHeaders(),
+        ...options.headers
+    }
+});
 
 // Helper function to construct API URLs
-export const API_ENDPOINT = (path: string) => {
-    // Only log in development/preview
-    if (import.meta.env.DEV || import.meta.env.VITE_ENVIRONMENT === 'preview') {
-        console.log('🔍 API Request:', {
-            env: import.meta.env.VITE_ENVIRONMENT,
-            base: API_BASE,
-            version: API_VSN,
-            path,
-            url: `${API_BASE}${API_VSN}${path}`
-        });
-    }
-    return `${API_BASE}${API_VSN}${path}`;
-}; 
+export const API_ENDPOINT = (path: string) => `${API_BASE}${API_VSN}${path}`; 

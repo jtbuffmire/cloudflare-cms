@@ -85,21 +85,11 @@
 
 		function loadImage(img: HTMLImageElement) {
 			const originalSrc = img.src;
-			console.log('Processing image:', { 
-				originalSrc,
-				includesCheck: {
-					postImages: originalSrc.includes('/post-images/'),
-					pics: originalSrc.includes('/pics/')
-				},
-				isAbsolute: originalSrc.startsWith('http')
-			});
 
-			// Only process if it's a relative URL
+			// Only process if it's a relative URL needing authentication
 			if ((originalSrc.includes('/post-images/') || originalSrc.includes('/pics/')) && 
 				!originalSrc.startsWith('http')) {
-				// Convert the relative URL to an absolute URL with proper domain
 				const fullUrl = getPicUrl(originalSrc);
-				console.log('Converting URL:', { originalSrc, fullUrl });
 				
 				fetch(fullUrl)
 					.then(response => {

@@ -1,11 +1,6 @@
 <script lang="ts">
 	import { siteConfig } from '$lib/stores';
 
-	// This logging statement will provide the raw payload received from the storeManager()	
-//	$: {
-//		console.log('Raw siteConfig:', JSON.stringify($siteConfig, null, 2));
-//	}
-
     let status = 'submit ->';
 	const handleSubmit = async (data: SubmitEvent) => {
 		status = 'submitting...';

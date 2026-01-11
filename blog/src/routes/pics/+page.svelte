@@ -18,60 +18,34 @@
 	};
 
 	function getPicUrl(url: string): string {
-		console.log('🔗 Input URL:', url);
-
-		// If the URL is already absolute, return it as is
 		if (url.startsWith('http://') || url.startsWith('https://')) {
 			return url;
 		}
-
-		const finalUrl = `${API_BASE}${API_VSN}${url}`;
-		console.log('🔗 Final URL:', finalUrl);
-		
-		// Add domain from default headers
-		const picUrl = new URL(finalUrl);
-		const domain = window.location.hostname.split(':')[0];
-		picUrl.searchParams.set('domain', domain);
-		
+		const picUrl = new URL(`${API_BASE}${API_VSN}${url}`);
+		picUrl.searchParams.set('domain', window.location.hostname.split(':')[0]);
 		return picUrl.toString();
 	}
 
-	// Handle image load event - fade in loaded images
 	function handleImageLoad(event: Event) {
 		const img = event.currentTarget as HTMLImageElement;
 		img.classList.add('loaded');
 	}
 
-	// Debug raw picture data
-	$: console.log('🔍 Raw Picture store data:', $pics);
-
-	// Filter pictures 
-    $: images = ($pics || [])
-        .filter(item => {
-            console.log(`Filtering item ${item.id}:`, {
-                published: item.published,
-                show_in_pics: item.show_in_pics,
-                passes_filter: item.published && item.show_in_pics
-            });
-            return item.published && item.show_in_pics;
-        })
-        .map(function(item) {
-            return {
-				sources: {
-					avif: item.avif_url ? getPicUrl(item.avif_url) : null,
-					webp: item.webp_url ? getPicUrl(item.webp_url) : null
-				},
-				img: { 
-					src: getPicUrl(item.url), 
-					w: item.width,
-					h: item.height
-				},
-				text_description: item.text_description,
-				text_description_visible: item.text_description_visible
-			}
-    	});
-
-    $: console.log('📸 Filtered images:', images.length);
+	$: images = ($pics || [])
+		.filter(item => item.published && item.show_in_pics)
+		.map(item => ({
+			sources: {
+				avif: item.avif_url ? getPicUrl(item.avif_url) : null,
+				webp: item.webp_url ? getPicUrl(item.webp_url) : null
+			},
+			img: { 
+				src: getPicUrl(item.url), 
+				w: item.width,
+				h: item.height
+			},
+			text_description: item.text_description,
+			text_description_visible: item.text_description_visible
+		}));
 </script>
 
 <svelte:head>

@@ -33,16 +33,11 @@
         body: JSON.stringify({ domain: DOMAIN }) // Only send domain, not credentials
       });
 
-      console.log('Response status:', response.status);
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Response error:', errorText);
-        throw new Error(errorText);
+        throw new Error(await response.text());
       }
 
       const data = await response.json() as LoginResponse;
-      console.log('Response data:', data);
-      
       if (!data.token) {
         throw new Error('No token received');
       }

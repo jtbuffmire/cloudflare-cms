@@ -25,12 +25,10 @@ const mockPosts: Post[] = [
 ];
 
 export async function GET() {
-  console.log('GET /api/posts called');
   return json(mockPosts);
 }
 
 export async function POST({ request }: RequestEvent) {
-  console.log('POST /api/posts called');
   const postData = await request.json() as CreatePostRequest;
   
   const newPost: Post = {

@@ -88,7 +88,6 @@
           : []
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(draftData));
-      console.log('Saved draft about_sections:', draftData.about_sections);
     }
   }
 
@@ -450,10 +449,6 @@
         show_instagram: data.show_instagram ?? false
       };
 
-      // Log the initial state for debugging
-      console.log('Initial data from API:', data.about_sections);
-      console.log('Initial localConfig:', localConfig.about_sections);
-
       // Update the store with the fetched data
       siteConfig.update(config => ({
         ...config,
@@ -483,9 +478,6 @@
             scale_factor: draftData.scale_factor || localConfig.scale_factor
           };
 
-          // Log the state after draft merge for debugging
-          console.log('Draft data loaded:', draftData.about_sections);
-          console.log('Final localConfig:', localConfig.about_sections);
         } catch (e) {
           console.error('Error loading draft:', e);
         }
@@ -700,7 +692,6 @@
 
   // Add a watcher specifically for about_sections
   $: if (browser && localConfig?.about_sections) {
-    console.log('about_sections changed:', localConfig.about_sections);
     saveDraft();
   }
 </script>

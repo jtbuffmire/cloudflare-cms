@@ -55,9 +55,6 @@ export const load: LayoutLoad = async ({ fetch }) => {
             urls.map(url => fetchWithTimeout(url, {}, fetch))
         );
 
-        // Debug the posts data
-        console.log('Raw posts response:', JSON.stringify(postsRes.posts?.slice(0, 2), null, 2));
-
         // Process animations data if it exists
         const animations = animationsRes?.animations?.map((animation: any) => ({
             ...animation,

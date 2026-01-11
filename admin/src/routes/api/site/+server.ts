@@ -54,14 +54,12 @@ const mockConfig: SiteConfig = {
 };
 
 export async function GET() {
-  console.log('GET /api/site called');
   return json(mockConfig);
 }
 
 interface UpdateSiteRequest extends Partial<Omit<SiteConfig, 'id' | 'updated_at'>> {}
 
 export async function PUT({ request }: RequestEvent) {
-  console.log('PUT /api/site called');
   const updates = await request.json() as UpdateSiteRequest;
   
   // In a real app, validate the updates and save to database

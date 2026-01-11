@@ -4,9 +4,7 @@ import { get } from 'svelte/store';
 import { posts } from '$lib/stores';
 
 export const load: PageLoad = ({ params }) => {
-  // Debug the store state
   const postsData = get(posts);
-  console.log('🔍 Posts store state:', postsData);
   
   // If store is empty, return a loading state
   if (!postsData || postsData.length === 0) {

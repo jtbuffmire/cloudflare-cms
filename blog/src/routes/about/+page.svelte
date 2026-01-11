@@ -1,26 +1,13 @@
 <script>
 	import { siteConfig } from '$lib/stores';
 
-// This logging statement will provide the raw payload received from the storeManager()	
-//	$: {
-//		console.log('Raw siteConfig:', JSON.stringify($siteConfig, null, 2));
-//	}
-
-	$: sections = (() => {
-		// First, ensure we have the data
-		if (!$siteConfig?.about_sections) {
-			console.log('Missing section data');
-			return [];
-		}
-
-		return ($siteConfig.about_sections || [])
-			.map(section => ({
-				header: section.title || '',
-				content: section.content || '',
-				visible: section.visible
-			}))
-			.filter(section => section.visible);
-	})();
+	$: sections = ($siteConfig?.about_sections || [])
+		.map(section => ({
+			header: section.title || '',
+			content: section.content || '',
+			visible: section.visible
+		}))
+		.filter(section => section.visible);
 </script>
 
 <main>

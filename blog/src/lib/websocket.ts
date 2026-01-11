@@ -66,7 +66,6 @@ export class WebSocketClient {
             }, this.connectionTimeout);
 
             this.ws.addEventListener('open', () => {
-                console.log('✅ WebSocket connected');
                 clearTimeout(connectionTimeoutId);
                 this.reconnectAttempts = 0;
                 this.reconnectDelay = 1000;
@@ -91,7 +90,7 @@ export class WebSocketClient {
                                 console.error('❌ Server error:', data.data);
                                 break;
                             default:
-                                console.log('📨 Unknown message type:', data);
+                                // Silently ignore unknown message types
                         }
                     }
                 } catch (err) {
@@ -99,15 +98,7 @@ export class WebSocketClient {
                 }
             });
 
-            this.ws.addEventListener('close', (event) => {
-                console.log('❌ WebSocket disconnected:', {
-                    code: event.code,
-                    reason: event.reason,
-                    wasClean: event.wasClean,
-                    url: this.url,
-                    readyState: this.ws?.readyState
-                });
-
+            this.ws.addEventListener('close', () => {
                 this.cleanup();
 
                 // Only attempt reconnect if we haven't reached max attempts
@@ -120,12 +111,8 @@ export class WebSocketClient {
                 }
             });
 
-            this.ws.addEventListener('error', (event) => {
-                console.log('❌ WebSocket error:', {
-                    error: event,
-                    readyState: this.ws?.readyState,
-                    url: this.url
-                });
+            this.ws.addEventListener('error', () => {
+                // Error handling - connection will close and trigger reconnect
             });
 
         } catch (err) {

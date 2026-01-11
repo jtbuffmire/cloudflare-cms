@@ -34,12 +34,6 @@
 		// Explicitly convert show_date to boolean - handle all possible types
 		const showDate = !(post.show_date === 0 || post.show_date === false);
 		
-		console.log(`Post ${post.id} (${post.title}) - show_date value:`, {
-			original: post.show_date,
-			type: typeof post.show_date,
-			converted: showDate
-		});
-		
 		return {
 			slug: post.slug,
 			date: post.published_at || post.created_at,
@@ -60,20 +54,16 @@
 		observer = new IntersectionObserver((entries) => {
 			const entry = entries[0];
 			if (entry && entry.isIntersecting && hasMorePosts && !isLoading) {
-				console.log('Loading more posts from observer trigger');
 				loadMorePosts();
 			}
 		}, { 
 			threshold: 0.1,
-			rootMargin: '0px 0px 200px 0px' // Load posts before user reaches bottom
+			rootMargin: '0px 0px 200px 0px'
 		});
 		
 		const loadingElement = document.getElementById('loadMore');
 		if (loadingElement) {
-			console.log('Observer observing element:', loadingElement);
 			observer.observe(loadingElement);
-		} else {
-			console.log('Loading element not found');
 		}
 	}
 
@@ -81,13 +71,6 @@
 	onMount(() => {
 		const initialize = async () => {
 			allPosts = [...$posts] as Post[];
-			console.log('Posts from store:', allPosts.map(p => ({
-				id: p.id,
-				title: p.title,
-				show_date: p.show_date
-			})));
-			
-			// Need to wait for the DOM to update with the loadMore element
 			await tick();
 			setupObserver();
 		};
@@ -102,12 +85,8 @@
 	});
 	
 	async function loadMorePosts() {
-		if (isLoading || !hasMorePosts) {
-			console.log('Skipping loadMorePosts - already loading or no more posts');
-			return;
-		}
+		if (isLoading || !hasMorePosts) return;
 		
-		console.log('Loading more posts - page', currentPage + 1);
 		isLoading = true;
 		currentPage++;
 		
@@ -120,7 +99,6 @@
 			});
 			
 			const data = await response.json();
-			console.log('Fetched additional posts:', data);
 			
 			if (data.posts && data.posts.length > 0) {
 				allPosts = [...allPosts, ...data.posts as Post[]];

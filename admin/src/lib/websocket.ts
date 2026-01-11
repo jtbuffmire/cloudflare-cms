@@ -30,10 +30,7 @@ export class WebSocketClient {
   public connect(): void {
     if (!browser) return;
 
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      console.log('🔌 WebSocket already connected');
-      return;
-    }
+    if (this.ws?.readyState === WebSocket.OPEN) return;
 
     const hostname = window.location.hostname;
     // For production admin panel (admin.buffmire.com), use main domain (buffmire.com)
@@ -60,7 +57,6 @@ export class WebSocketClient {
   }
 
   private handleOpen(): void {
-    console.log('🔌 WebSocket connected');
     this.reconnectAttempts = 0;
     if (this.connectionTimeout) {
       clearTimeout(this.connectionTimeout);
@@ -95,14 +91,10 @@ export class WebSocketClient {
   private reconnect(): void {
     if (!browser) return;
 
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.log('⚠️ Max reconnection attempts reached');
-      return;
-    }
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) return;
 
     this.reconnectAttempts++;
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
-    console.log(`🔄 Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
 
     setTimeout(() => {
       this.connect();

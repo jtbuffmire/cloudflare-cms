@@ -7,7 +7,6 @@ import type { Post } from '$lib/types';
 declare const mockPosts: Post[];
 
 export async function GET({ params }: RequestEvent) {
-  console.log(`GET /api/posts/${params.id} called`);
   const post = mockPosts.find(p => p.id === params.id);
   
   if (!post) {
@@ -26,7 +25,6 @@ interface UpdatePostRequest {
 }
 
 export async function PUT({ params, request }: RequestEvent) {
-  console.log(`PUT /api/posts/${params.id} called`);
   const postIndex = mockPosts.findIndex(p => p.id === params.id);
   
   if (postIndex === -1) {
@@ -45,7 +43,6 @@ export async function PUT({ params, request }: RequestEvent) {
 }
 
 export async function DELETE({ params }: RequestEvent) {
-  console.log(`DELETE /api/posts/${params.id} called`);
   const postIndex = mockPosts.findIndex(p => p.id === params.id);
   
   if (postIndex === -1) {

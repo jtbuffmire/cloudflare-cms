@@ -49,14 +49,7 @@
 
 	// Update stores with data
 	$: if (data.siteConfig) siteConfig.set(data.siteConfig);
-	$: if (data.posts) {
-		console.log('Setting posts with show_date values:', data.posts.map(p => ({ 
-			id: p.id, 
-			title: p.title, 
-			show_date: p.show_date 
-		})));
-		posts.set(data.posts);
-	}
+	$: if (data.posts) posts.set(data.posts);
 	$: if (data.pics) pics.set(data.pics);
 	$: if (data.animations) animations.set(data.animations);
 
