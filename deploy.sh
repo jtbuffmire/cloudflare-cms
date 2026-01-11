@@ -374,8 +374,8 @@ if [ "$DEPLOY_WORKER" = true ]; then
     else
         cd "$SCRIPT_DIR/worker"
         
-        # Deploy to production environment (uses production database)
-        if wrangler deploy --env production; then
+        # Deploy to production (default config now uses production database)
+        if wrangler deploy; then
             echo -e "${GREEN}✓ Worker deployed successfully${NC}"
         else
             echo -e "${RED}✗ Worker deployment failed${NC}"

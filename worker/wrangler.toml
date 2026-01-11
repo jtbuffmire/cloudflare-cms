@@ -2,22 +2,20 @@ name = "cms"
 main = "src/index.ts"
 compatibility_date = "2025-04-21"
 
-[dev]
-port = 8787
-local_protocol = "http"
-ip = "localhost"
+# =============================================================================
+# Default Configuration (Production)
+# This is what gets deployed with `wrangler deploy`
+# =============================================================================
 
-# Local development database (uses local SQLite)
 [[d1_databases]]
 binding = "DB"
-database_name = "cms-db-dev"
-database_id = "local-dev-placeholder"
+database_name = "cms-db"
+database_id = "e425276a-525d-41d5-bc6a-9e2c17744ef5"
 migrations_dir = "migrations/sql"
 
 [[r2_buckets]]
 binding = "BUCKET"
 bucket_name = "cms-media"
-preview_bucket_name = "cms-media-dev"
 
 [[durable_objects.bindings]]
 name = "WEBSOCKET_HANDLER"
@@ -27,28 +25,33 @@ class_name = "WebSocketHandler"
 tag = "v1"
 new_classes = ["WebSocketHandler"]
 
-# Production environment
-[env.production]
-[[env.production.d1_databases]]
-binding = "DB"
-database_name = "cms-db"
-database_id = "e425276a-525d-41d5-bc6a-9e2c17744ef5"
-
-[[env.production.r2_buckets]]
-binding = "BUCKET"
-bucket_name = "cms-media"
-
-# Add durable objects configuration to production
-[[env.production.durable_objects.bindings]]
-name = "WEBSOCKET_HANDLER"
-class_name = "WebSocketHandler"
-
-# wrangler.toml (wrangler v3.88.0^)
 [observability.logs]
 enabled = true
 
-# For development only - use wrangler secret for production
-JWT_SECRET = "${JWT_SECRET}"
-ADMIN_USERNAME = "${ADMIN_USERNAME}"
-ADMIN_PASSWORD = "${ADMIN_PASSWORD}"
+# =============================================================================
+# Local Development Configuration
+# Used with `wrangler dev` - uses local SQLite and dev bucket
+# =============================================================================
+[env.dev]
+
+[[env.dev.d1_databases]]
+binding = "DB"
+database_name = "cms-db-dev"
+database_id = "local-dev-placeholder"
+
+[[env.dev.r2_buckets]]
+binding = "BUCKET"
+bucket_name = "cms-media-dev"
+
+[[env.dev.durable_objects.bindings]]
+name = "WEBSOCKET_HANDLER"
+class_name = "WebSocketHandler"
+
+# =============================================================================
+# Dev server settings (applies to `wrangler dev`)
+# =============================================================================
+[dev]
+port = 8787
+local_protocol = "http"
+ip = "localhost"
 
